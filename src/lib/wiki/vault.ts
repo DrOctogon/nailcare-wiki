@@ -57,6 +57,10 @@ function asStringArray(value: unknown): string[] {
 function firstString(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number") return String(value);
+  // YAML parses unquoted ISO dates (created: 2026-07-10) into Date objects.
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
   return null;
 }
 
@@ -456,6 +460,52 @@ export const getSearchIndex = cache(async (): Promise<SearchDoc[]> => {
       excerpt: p.excerpt,
       tags: p.tags,
     }));
+});
+
+export interface TimelineBucket {
+  /** Sort key, e.g. "2026-07". */
+  period: string;
+  /** Human label, e.g. "July 2026". */
+  label: string;
+  pages: WikiPageMeta[];
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * Group pages into month buckets by their most recent date (updated, falling
+ * back to created), newest first — the vault's growth over time.
+ */
+export const getTimeline = cache(async (): Promise<TimelineBucket[]> => {
+  const metas = await getAllPageMetas();
+  const buckets = new Map<string, WikiPageMeta[]>();
+
+  for (const meta of metas) {
+    if (meta.isIndex) continue;
+    const date = meta.updated ?? meta.created;
+    const match = date ? /^(\d{4})-(\d{2})/.exec(date) : null;
+    if (!match) continue;
+    const period = `${match[1]}-${match[2]}`;
+    const list = buckets.get(period);
+    if (list) list.push(meta);
+    else buckets.set(period, [meta]);
+  }
+
+  return [...buckets.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([period, pages]) => {
+      const [year, month] = period.split("-");
+      return {
+        period,
+        label: `${MONTHS[Number(month) - 1]} ${year}`,
+        pages: pages.sort((a, b) =>
+          (b.updated ?? "").localeCompare(a.updated ?? ""),
+        ),
+      };
+    });
 });
 
 /** Most-recently-updated pages. */

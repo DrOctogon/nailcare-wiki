@@ -138,7 +138,10 @@ export async function renderMarkdown(
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(remarkMath)
+    // Only treat `$$…$$` blocks as math. Single-dollar inline math is disabled
+    // because the vault is full of dollar amounts ($82k, $16.66/hr) that would
+    // otherwise be parsed as (broken) LaTeX.
+    .use(remarkMath, { singleDollarTextMath: false })
     .use(remarkWikiLinks, resolve, links)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Network, Tags, Sparkles, Library } from "lucide-react";
+import { Home, Network, Tags, Sparkles, Library, CalendarClock } from "lucide-react";
 
 import { dirMeta } from "@/lib/wiki/labels";
 import {
@@ -34,6 +34,7 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
   const primary = [
     { href: "/", label: "Dashboard", icon: Home },
     { href: "/graph", label: "Knowledge Graph", icon: Network },
+    { href: "/timeline", label: "Timeline", icon: CalendarClock },
     { href: "/tags", label: "Tags", icon: Tags },
   ];
 
