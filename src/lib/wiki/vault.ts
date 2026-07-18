@@ -1,0 +1,467 @@
+import "server-only";
+
+import fs from "node:fs/promises";
+import path from "node:path";
+import matter from "gray-matter";
+import { cache } from "react";
+import Graph from "graphology";
+import louvain from "graphology-communities-louvain";
+import pagerank from "graphology-metrics/centrality/pagerank.js";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import circular from "graphology-layout/circular.js";
+
+import { WIKI_DIR } from "./config";
+import { slugify, normalizeTitle } from "./slug";
+import { renderMarkdown, parseWikiTarget, type Resolver } from "./markdown";
+import neighborsData from "./neighbors.json";
+import type {
+  WikiGraph,
+  WikiLink,
+  WikiPage,
+  WikiPageMeta,
+  WikiType,
+} from "./types";
+
+const VALID_TYPES = new Set<WikiType>([
+  "entity",
+  "concept",
+  "source",
+  "question",
+  "comparison",
+  "derived",
+  "reference",
+  "fold",
+  "meta",
+]);
+
+/**
+ * Obsidian pages conventionally repeat the frontmatter title as a leading `# H1`.
+ * The page header already renders the title, so strip that duplicate H1 to avoid
+ * showing it twice (and to keep it out of the table of contents).
+ */
+function stripLeadingTitle(body: string, title: string): string {
+  const trimmed = body.replace(/^\s+/, "");
+  const m = /^#\s+(.+?)\s*(?:\n|$)/.exec(trimmed);
+  if (m && normalizeTitle(m[1]) === normalizeTitle(title)) {
+    return trimmed.slice(m[0].length);
+  }
+  return body;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function firstString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number") return String(value);
+  return null;
+}
+
+function buildExcerpt(body: string): string {
+  const text = body
+    .replace(/^#.*$/gm, "") // drop heading lines
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t, a) => a || t) // wikilink → label
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // md link → text
+    .replace(/[*_`>#-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= 220) return text;
+  return text.slice(0, 217).replace(/\s+\S*$/, "") + "…";
+}
+
+interface RawRecord {
+  slug: string;
+  title: string;
+  type: WikiType;
+  dir: string;
+  isIndex: boolean;
+  filePath: string;
+  data: Record<string, unknown>;
+  body: string;
+}
+
+async function walk(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith(".")) continue;
+      out.push(...(await walk(full)));
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+interface VaultData {
+  pages: Map<string, WikiPage>;
+  metas: WikiPageMeta[];
+  graph: WikiGraph;
+}
+
+// Module-level singleton. React's cache() is request-scoped, so during static
+// export every page would re-parse the whole vault (658 pages × 309 files →
+// build timeout). A process-wide promise parses the vault exactly once per
+// build worker instead.
+let vaultPromise: Promise<VaultData> | null = null;
+
+function loadVault(): Promise<VaultData> {
+  if (!vaultPromise) vaultPromise = buildVault();
+  return vaultPromise;
+}
+
+async function buildVault(): Promise<VaultData> {
+  const files = await walk(WIKI_DIR);
+
+  // ---- Pass 1: read frontmatter, assign unique slugs, build resolver maps. ----
+  const raws: RawRecord[] = [];
+  const usedSlugs = new Set<string>();
+  const titleToSlug = new Map<string, string>();
+  const basenameToSlug = new Map<string, string>();
+
+  for (const filePath of files) {
+    const rel = path.relative(WIKI_DIR, filePath);
+    const segments = rel.split(path.sep);
+    const dir = segments.length > 1 ? segments[0] : "";
+    const basename = path.basename(filePath, ".md");
+    const isIndex = basename === "_index" || basename.startsWith("_");
+
+    let source: string;
+    try {
+      source = await fs.readFile(filePath, "utf8");
+    } catch {
+      continue;
+    }
+    const { data, content } = matter(source);
+    const title = firstString(data.title) ?? basename;
+    const rawType = firstString(data.type) ?? "unknown";
+    const type = (VALID_TYPES.has(rawType as WikiType) ? rawType : "unknown") as WikiType;
+
+    let slug = slugify(title);
+    while (usedSlugs.has(slug)) slug = `${slug}-${usedSlugs.size}`;
+    usedSlugs.add(slug);
+
+    titleToSlug.set(normalizeTitle(title), slug);
+    basenameToSlug.set(normalizeTitle(basename), slug);
+
+    raws.push({ slug, title, type, dir, isIndex, filePath, data, body: content });
+  }
+
+  const resolve: Resolver = (target) => {
+    const key = normalizeTitle(target);
+    return titleToSlug.get(key) ?? basenameToSlug.get(key) ?? null;
+  };
+
+  // ---- Pass 2: render HTML, resolve links, collect outbound edges. ----
+  const pages = new Map<string, WikiPage>();
+  const backlinkSets = new Map<string, Set<string>>();
+
+  const addBacklink = (targetSlug: string, fromSlug: string) => {
+    if (targetSlug === fromSlug) return;
+    let set = backlinkSets.get(targetSlug);
+    if (!set) backlinkSets.set(targetSlug, (set = new Set()));
+    set.add(fromSlug);
+  };
+
+  for (const rec of raws) {
+    const { html, headings, links } = await renderMarkdown(
+      stripLeadingTitle(rec.body, rec.title),
+      resolve,
+    );
+
+    const related: WikiLink[] = asStringArray(rec.data.related).map((entry) => {
+      const cleaned = entry.replace(/^\[\[|\]\]$/g, "");
+      const { target, label } = parseWikiTarget(cleaned);
+      return { target, label, slug: resolve(target) };
+    });
+
+    // Dedup outbound links by slug (resolved) or target (unresolved).
+    const seen = new Set<string>();
+    const outboundLinks: WikiLink[] = [];
+    for (const link of [...links, ...related]) {
+      const key = link.slug ?? `?${normalizeTitle(link.target)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      outboundLinks.push(link);
+      if (link.slug) addBacklink(link.slug, rec.slug);
+    }
+
+    const page: WikiPage = {
+      slug: rec.slug,
+      title: rec.title,
+      type: rec.type,
+      dir: rec.dir,
+      address: firstString(rec.data.address),
+      tags: asStringArray(rec.data.tags),
+      status: firstString(rec.data.status),
+      domain: firstString(rec.data.domain),
+      created: firstString(rec.data.created),
+      updated: firstString(rec.data.updated),
+      excerpt: buildExcerpt(rec.body),
+      wordCount: rec.body.split(/\s+/).filter(Boolean).length,
+      backlinkCount: 0,
+      outboundCount: outboundLinks.length,
+      isIndex: rec.isIndex,
+      html,
+      related,
+      outboundLinks,
+      backlinks: [],
+      semanticRelated: [],
+      headings,
+      filePath: rec.filePath,
+    };
+    pages.set(rec.slug, page);
+  }
+
+  // ---- Finalize backlinks. ----
+  for (const page of pages.values()) {
+    const set = backlinkSets.get(page.slug);
+    page.backlinks = set ? [...set] : [];
+    page.backlinkCount = page.backlinks.length;
+  }
+
+  // ---- Attach precomputed semantic neighbors (empty until `pnpm embed` runs). ----
+  const neighbors = neighborsData as Record<string, string[]>;
+  for (const page of pages.values()) {
+    const candidates = neighbors[page.slug] ?? [];
+    page.semanticRelated = candidates.filter((slug) => {
+      const target = pages.get(slug);
+      return target != null && !target.isIndex && slug !== page.slug;
+    });
+  }
+
+  const metas = [...pages.values()]
+    .map(toMeta)
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  const graph = buildGraph(pages);
+
+  return { pages, metas, graph };
+}
+
+function toMeta(page: WikiPage): WikiPageMeta {
+  return {
+    slug: page.slug,
+    title: page.title,
+    type: page.type,
+    dir: page.dir,
+    address: page.address,
+    tags: page.tags,
+    status: page.status,
+    domain: page.domain,
+    created: page.created,
+    updated: page.updated,
+    excerpt: page.excerpt,
+    wordCount: page.wordCount,
+    backlinkCount: page.backlinkCount,
+    outboundCount: page.outboundCount,
+    isIndex: page.isIndex,
+  };
+}
+
+function buildGraph(pages: Map<string, WikiPage>): WikiGraph {
+  const degree = new Map<string, number>();
+  const edgeKeys = new Set<string>();
+  const links: WikiGraph["links"] = [];
+
+  // Meta pages (Wiki Index, Hot Cache, Operation Log, …) link to nearly
+  // everything — they form a navigational hairball that hides the real
+  // structure, so keep them out of the graph.
+  const inGraph = (p: WikiPage) => !p.isIndex && p.type !== "meta";
+
+  for (const page of pages.values()) {
+    if (!inGraph(page)) continue;
+    for (const link of page.outboundLinks) {
+      if (!link.slug || link.slug === page.slug) continue;
+      const target = pages.get(link.slug);
+      if (!target || !inGraph(target)) continue;
+      const key = `${page.slug}->${link.slug}`;
+      if (edgeKeys.has(key)) continue;
+      edgeKeys.add(key);
+      links.push({ source: page.slug, target: link.slug });
+      degree.set(page.slug, (degree.get(page.slug) ?? 0) + 1);
+      degree.set(link.slug, (degree.get(link.slug) ?? 0) + 1);
+    }
+  }
+
+  // Only include connected nodes — isolated singletons scatter far from the
+  // main component and add no navigational value.
+  const connected = [...pages.values()].filter(
+    (p) => inGraph(p) && (degree.get(p.slug) ?? 0) > 0,
+  );
+
+  // ---- Graph analytics (server-side, once per build) ----------------------
+  // Build an undirected graphology graph, then compute Louvain communities,
+  // PageRank, and a ForceAtlas2 layout so the client can paint instantly
+  // without running its own physics simulation.
+  const g = new Graph({ type: "undirected", multi: false });
+  for (const p of connected) g.addNode(p.slug);
+  for (const link of links) {
+    if (!g.hasNode(link.source) || !g.hasNode(link.target)) continue;
+    if (!g.hasEdge(link.source, link.target)) {
+      g.addUndirectedEdge(link.source, link.target);
+    }
+  }
+
+  let communities: Record<string, number> = {};
+  const pageranks: Record<string, number> = {};
+  try {
+    communities = louvain(g);
+  } catch {
+    // Falls back to a single community if the algorithm can't converge.
+  }
+  try {
+    Object.assign(pageranks, pagerank(g));
+  } catch {
+    // Falls back to degree-based sizing below.
+  }
+
+  // Seed a circular layout then relax it with ForceAtlas2 for a stable spread.
+  circular.assign(g);
+  const settings = forceAtlas2.inferSettings(g);
+  forceAtlas2.assign(g, { iterations: 220, settings });
+
+  const nodes = connected.map((p) => ({
+    id: p.slug,
+    title: p.title,
+    type: p.type,
+    dir: p.dir,
+    val: 1 + (degree.get(p.slug) ?? 0),
+    community: communities[p.slug] ?? 0,
+    pagerank: pageranks[p.slug] ?? 0,
+    x: (g.getNodeAttribute(p.slug, "x") as number) ?? 0,
+    y: (g.getNodeAttribute(p.slug, "y") as number) ?? 0,
+  }));
+
+  return { nodes, links };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — all memoized through the single loadVault() call.
+// ---------------------------------------------------------------------------
+
+export const getAllPageMetas = cache(async (): Promise<WikiPageMeta[]> => {
+  return (await loadVault()).metas;
+});
+
+export const getPage = cache(async (slug: string): Promise<WikiPage | null> => {
+  return (await loadVault()).pages.get(slug) ?? null;
+});
+
+/** Resolve a page's precomputed semantic neighbors to full metas, in order. */
+export const getSemanticRelated = cache(
+  async (slug: string, limit = 5): Promise<WikiPageMeta[]> => {
+    const { pages } = await loadVault();
+    const page = pages.get(slug);
+    if (!page) return [];
+    const out: WikiPageMeta[] = [];
+    for (const neighborSlug of page.semanticRelated) {
+      const neighbor = pages.get(neighborSlug);
+      if (neighbor) out.push(toMeta(neighbor));
+      if (out.length >= limit) break;
+    }
+    return out;
+  },
+);
+
+export const getPagesByDir = cache(async (dir: string): Promise<WikiPageMeta[]> => {
+  return (await getAllPageMetas()).filter((p) => p.dir === dir && !p.isIndex);
+});
+
+export const getGraph = cache(async (): Promise<WikiGraph> => {
+  return (await loadVault()).graph;
+});
+
+export interface TagCount {
+  tag: string;
+  count: number;
+}
+
+export const getAllTags = cache(async (): Promise<TagCount[]> => {
+  const counts = new Map<string, number>();
+  for (const meta of await getAllPageMetas()) {
+    if (meta.isIndex) continue;
+    for (const tag of meta.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+});
+
+export const getPagesByTag = cache(async (tag: string): Promise<WikiPageMeta[]> => {
+  const key = tag.toLowerCase();
+  return (await getAllPageMetas()).filter(
+    (p) => !p.isIndex && p.tags.some((t) => t.toLowerCase() === key),
+  );
+});
+
+export interface VaultStats {
+  total: number;
+  byDir: { dir: string; count: number }[];
+  totalLinks: number;
+  totalTags: number;
+}
+
+export const getStats = cache(async (): Promise<VaultStats> => {
+  const metas = (await getAllPageMetas()).filter((p) => !p.isIndex);
+  const byDirMap = new Map<string, number>();
+  let totalLinks = 0;
+  for (const m of metas) {
+    if (m.dir) byDirMap.set(m.dir, (byDirMap.get(m.dir) ?? 0) + 1);
+    totalLinks += m.outboundCount;
+  }
+  const byDir = [...byDirMap.entries()]
+    .map(([dir, count]) => ({ dir, count }))
+    .sort((a, b) => b.count - a.count);
+  const tags = await getAllTags();
+  return { total: metas.length, byDir, totalLinks, totalTags: tags.length };
+});
+
+/** Most-linked-to pages — used for the dashboard "hot" list. */
+export const getMostLinked = cache(async (limit = 8): Promise<WikiPageMeta[]> => {
+  return [...(await getAllPageMetas())]
+    .filter((p) => !p.isIndex)
+    .sort((a, b) => b.backlinkCount - a.backlinkCount)
+    .slice(0, limit);
+});
+
+export interface SearchDoc {
+  slug: string;
+  title: string;
+  dir: string;
+  type: WikiType;
+  excerpt: string;
+  tags: string[];
+}
+
+/** Lightweight, client-shippable index for the command-palette search. */
+export const getSearchIndex = cache(async (): Promise<SearchDoc[]> => {
+  return (await getAllPageMetas())
+    .filter((p) => !p.isIndex)
+    .map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      dir: p.dir,
+      type: p.type,
+      excerpt: p.excerpt,
+      tags: p.tags,
+    }));
+});
+
+/** Most-recently-updated pages. */
+export const getRecentlyUpdated = cache(async (limit = 8): Promise<WikiPageMeta[]> => {
+  return [...(await getAllPageMetas())]
+    .filter((p) => !p.isIndex && p.updated)
+    .sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""))
+    .slice(0, limit);
+});
