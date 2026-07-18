@@ -10,7 +10,7 @@ import pagerank from "graphology-metrics/centrality/pagerank.js";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import circular from "graphology-layout/circular.js";
 
-import { WIKI_DIR } from "./config";
+import { WIKI_DIR, BROWSE_DIRS } from "./config";
 import { slugify, normalizeTitle } from "./slug";
 import { renderMarkdown, parseWikiTarget, type Resolver } from "./markdown";
 import neighborsData from "./neighbors.json";
@@ -460,6 +460,77 @@ export const getSearchIndex = cache(async (): Promise<SearchDoc[]> => {
       excerpt: p.excerpt,
       tags: p.tags,
     }));
+});
+
+export interface GrowthPoint {
+  /** ISO day, e.g. "2026-07-13". */
+  date: string;
+  /** Pages first seen on this day. */
+  added: number;
+  /** Running total up to and including this day. */
+  cumulative: number;
+}
+
+/**
+ * Cumulative page count over time, by the day each page was created (falling
+ * back to updated). One point per day that saw activity — the vault's
+ * compounding curve.
+ */
+export const getGrowthSeries = cache(async (): Promise<GrowthPoint[]> => {
+  const metas = await getAllPageMetas();
+  const perDay = new Map<string, number>();
+
+  for (const meta of metas) {
+    if (meta.isIndex) continue;
+    const date = meta.created ?? meta.updated;
+    const match = date ? /^(\d{4}-\d{2}-\d{2})/.exec(date) : null;
+    if (!match) continue;
+    perDay.set(match[1], (perDay.get(match[1]) ?? 0) + 1);
+  }
+
+  const days = [...perDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  let running = 0;
+  return days.map(([date, added]) => {
+    running += added;
+    return { date, added, cumulative: running };
+  });
+});
+
+export interface HistogramBin {
+  label: string;
+  count: number;
+}
+
+/** Distribution of pages by how many backlinks point at them. */
+export const getConnectivityHistogram = cache(async (): Promise<HistogramBin[]> => {
+  const metas = (await getAllPageMetas()).filter((p) => !p.isIndex);
+  const bins: { label: string; test: (n: number) => boolean }[] = [
+    { label: "0", test: (n) => n === 0 },
+    { label: "1", test: (n) => n === 1 },
+    { label: "2", test: (n) => n === 2 },
+    { label: "3–4", test: (n) => n >= 3 && n <= 4 },
+    { label: "5–9", test: (n) => n >= 5 && n <= 9 },
+    { label: "10–19", test: (n) => n >= 10 && n <= 19 },
+    { label: "20+", test: (n) => n >= 20 },
+  ];
+  return bins.map((bin) => ({
+    label: bin.label,
+    count: metas.filter((p) => bin.test(p.backlinkCount)).length,
+  }));
+});
+
+export interface CollectionSize {
+  dir: string;
+  count: number;
+}
+
+/** Page counts per browsable collection, largest first. */
+export const getCollectionSizes = cache(async (): Promise<CollectionSize[]> => {
+  const stats = await getStats();
+  const browsable = new Set<string>(BROWSE_DIRS);
+  return stats.byDir
+    .filter((d) => browsable.has(d.dir))
+    .sort((a, b) => b.count - a.count);
 });
 
 export interface TimelineBucket {

@@ -14,21 +14,37 @@ import {
   getMostLinked,
   getRecentlyUpdated,
   getAllTags,
+  getGrowthSeries,
+  getConnectivityHistogram,
+  getCollectionSizes,
 } from "@/lib/wiki/vault";
 import { dirMeta, DIR_ORDER } from "@/lib/wiki/labels";
 import { StatCard } from "@/components/wiki/stat-card";
 import { PageCard } from "@/components/wiki/page-card";
+import { GrowthAreaChart } from "@/components/wiki/charts/growth-area-chart";
+import { CollectionsBarChart } from "@/components/wiki/charts/collections-bar-chart";
+import { ConnectivityHistogram } from "@/components/wiki/charts/connectivity-histogram";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
 export default async function DashboardPage() {
-  const [stats, hot, recent, tags] = await Promise.all([
-    getStats(),
-    getMostLinked(6),
-    getRecentlyUpdated(4),
-    getAllTags(),
-  ]);
+  const [stats, hot, recent, tags, growth, connectivity, collectionSizes] =
+    await Promise.all([
+      getStats(),
+      getMostLinked(6),
+      getRecentlyUpdated(4),
+      getAllTags(),
+      getGrowthSeries(),
+      getConnectivityHistogram(),
+      getCollectionSizes(),
+    ]);
 
   const byDir = new Map(stats.byDir.map((d) => [d.dir, d.count]));
   const collections = DIR_ORDER.filter((d) => byDir.has(d));
@@ -95,6 +111,48 @@ export default async function DashboardPage() {
           icon={Network}
           accent="var(--chart-5)"
         />
+      </section>
+
+      {/* Vault analytics */}
+      <section className="mb-12">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight">
+          Vault analytics
+        </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Knowledge growth</CardTitle>
+              <CardDescription>
+                Cumulative pages by the day each note was created.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GrowthAreaChart data={growth} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pages by collection</CardTitle>
+              <CardDescription>How the vault breaks down by type.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CollectionsBarChart data={collectionSizes} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Connectivity</CardTitle>
+              <CardDescription>
+                Pages grouped by how many backlinks point at them.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ConnectivityHistogram data={connectivity} />
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       {/* Collections */}
