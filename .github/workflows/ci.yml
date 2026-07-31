@@ -22,7 +22,11 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # dangerouslyAllowAllBuilds: pnpm v11 exits non-zero if any dependency's
+        # native build script is unapproved. In this ephemeral CI runner we trust
+        # the locked deps and let them all build (esbuild powers vitest, the eslint
+        # resolver needs its binary, etc.).
+        run: pnpm install --frozen-lockfile --config.dangerouslyAllowAllBuilds=true
 
       - name: Lint
         run: pnpm lint
