@@ -35,7 +35,7 @@ let extractorPromise: Promise<Extractor> | null = null;
 
 const MODEL = "Xenova/all-MiniLM-L6-v2";
 
-function loadDocs(): Promise<VectorDoc[]> {
+export function loadDocs(): Promise<VectorDoc[]> {
   if (!docsPromise) {
     docsPromise = fetch("/vault-vectors.json")
       .then((res) => {
@@ -69,8 +69,10 @@ function loadExtractor(): Promise<Extractor> {
 
 /** Warm the model + vectors ahead of the first query. */
 export function primeSemanticSearch(): void {
-  void loadDocs();
-  void loadExtractor();
+  // Fire-and-forget warmup: swallow rejections here (the real query call
+  // re-triggers and surfaces the error to the user).
+  loadDocs().catch(() => {});
+  loadExtractor().catch(() => {});
 }
 
 function cosine(a: number[], b: number[] | Float32Array): number {
@@ -79,15 +81,20 @@ function cosine(a: number[], b: number[] | Float32Array): number {
   return dot; // both sides are L2-normalized
 }
 
+/** Embed a query with the mean-pooled, L2-normalized MiniLM extractor. */
+export async function embedQuery(text: string): Promise<number[]> {
+  const extractor = await loadExtractor();
+  const out = await extractor(text, { pooling: "mean", normalize: true });
+  return Array.from(out.data as Float32Array);
+}
+
 export async function semanticSearch(
   query: string,
   limit = 12,
 ): Promise<SemanticHit[]> {
   const q = query.trim();
   if (!q) return [];
-  const [docs, extractor] = await Promise.all([loadDocs(), loadExtractor()]);
-  const out = await extractor(q, { pooling: "mean", normalize: true });
-  const qv = Array.from(out.data as Float32Array);
+  const [docs, qv] = await Promise.all([loadDocs(), embedQuery(q)]);
 
   return docs
     .map((doc) => ({

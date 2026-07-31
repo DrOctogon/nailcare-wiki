@@ -8,10 +8,10 @@ import { FileText, Search, Sparkles, Loader2 } from "lucide-react";
 import type { SearchDoc } from "@/lib/wiki/vault";
 import { dirMeta } from "@/lib/wiki/labels";
 import {
-  semanticSearch,
-  primeSemanticSearch,
-  type SemanticHit,
-} from "@/lib/wiki/semantic-search";
+  hybridSearch,
+  primeHybrid,
+  type HybridHit,
+} from "@/lib/wiki/hybrid-search";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -27,14 +27,14 @@ interface SearchCommandProps {
   docs: SearchDoc[];
 }
 
-type Mode = "keyword" | "semantic";
+type Mode = "keyword" | "hybrid";
 
 export function SearchCommand({ docs }: SearchCommandProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<Mode>("keyword");
-  const [semanticHits, setSemanticHits] = useState<SemanticHit[]>([]);
+  const [hybridHits, setHybridHits] = useState<HybridHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,12 +66,12 @@ export function SearchCommand({ docs }: SearchCommandProps) {
       .map((r) => r.item);
   }, [query, fuse, docs]);
 
-  // Debounced semantic query when in semantic mode.
+  // Debounced hybrid query when in hybrid mode.
   useEffect(() => {
-    if (mode !== "semantic") return;
+    if (mode !== "hybrid") return;
     const q = query.trim();
     if (!q) {
-      setSemanticHits([]);
+      setHybridHits([]);
       setLoading(false);
       return;
     }
@@ -79,12 +79,12 @@ export function SearchCommand({ docs }: SearchCommandProps) {
     setLoading(true);
     setError(null);
     const handle = setTimeout(() => {
-      semanticSearch(q, 16)
+      hybridSearch(q, docs, 16)
         .then((hits) => {
-          if (!cancelled) setSemanticHits(hits);
+          if (!cancelled) setHybridHits(hits);
         })
         .catch(() => {
-          if (!cancelled) setError("Semantic model failed to load.");
+          if (!cancelled) setError("Search index failed to load.");
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -94,7 +94,7 @@ export function SearchCommand({ docs }: SearchCommandProps) {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query, mode]);
+  }, [query, mode, docs]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -114,12 +114,12 @@ export function SearchCommand({ docs }: SearchCommandProps) {
     router.push(`/wiki/${slug}`);
   };
 
-  const enableSemantic = () => {
-    setMode("semantic");
-    primeSemanticSearch();
+  const enableHybrid = () => {
+    setMode("hybrid");
+    primeHybrid(docs);
   };
 
-  const showSemantic = mode === "semantic";
+  const showHybrid = mode === "hybrid";
 
   return (
     <>
@@ -138,10 +138,10 @@ export function SearchCommand({ docs }: SearchCommandProps) {
       </Button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <Command shouldFilter={!showSemantic}>
+        <Command shouldFilter={!showHybrid}>
         <CommandInput
           placeholder={
-            showSemantic ? "Describe what you're looking for…" : "Search pages, tags…"
+            showHybrid ? "Describe what you're looking for…" : "Search pages, tags…"
           }
           value={query}
           onValueChange={setQuery}
@@ -152,14 +152,14 @@ export function SearchCommand({ docs }: SearchCommandProps) {
           <button
             type="button"
             onClick={() => setMode("keyword")}
-            className={toggleClass(!showSemantic)}
+            className={toggleClass(!showHybrid)}
           >
             <Search className="h-3.5 w-3.5" /> Keyword
           </button>
-          <button type="button" onClick={enableSemantic} className={toggleClass(showSemantic)}>
-            <Sparkles className="h-3.5 w-3.5" /> Semantic
+          <button type="button" onClick={enableHybrid} className={toggleClass(showHybrid)}>
+            <Sparkles className="h-3.5 w-3.5" /> Hybrid
           </button>
-          {showSemantic && loading && (
+          {showHybrid && loading && (
             <span className="text-muted-foreground ml-auto flex items-center gap-1.5 pr-1 text-xs">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> thinking…
             </span>
@@ -167,24 +167,24 @@ export function SearchCommand({ docs }: SearchCommandProps) {
         </div>
 
         <CommandList>
-          {showSemantic ? (
+          {showHybrid ? (
             <>
               {error && (
                 <div className="text-muted-foreground px-4 py-6 text-center text-sm">
                   {error}
                 </div>
               )}
-              {!error && !loading && query.trim() && semanticHits.length === 0 && (
-                <CommandEmpty>No semantic matches.</CommandEmpty>
+              {!error && !loading && query.trim() && hybridHits.length === 0 && (
+                <CommandEmpty>No matches.</CommandEmpty>
               )}
               {!error && !query.trim() && (
                 <div className="text-muted-foreground px-4 py-6 text-center text-sm">
-                  Ask in natural language — e.g. “why are salon margins thin?”
+                  Blends keywords + meaning — try “why are salon margins thin?”
                 </div>
               )}
-              {semanticHits.length > 0 && (
+              {hybridHits.length > 0 && (
                 <CommandGroup heading="Closest in meaning">
-                  {semanticHits.map((hit) => (
+                  {hybridHits.map((hit) => (
                     <CommandItem
                       key={hit.slug}
                       value={hit.slug}

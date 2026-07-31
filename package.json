@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@orama/orama": "^3.1.18",
     "@react-sigma/core": "^5.0.6",
     "@shikijs/rehype": "^4.3.1",
     "class-variance-authority": "^0.7.1",
