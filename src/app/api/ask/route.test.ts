@@ -284,11 +284,13 @@ describe("POST /api/ask — Ollama availability", () => {
 // --- POST happy path -------------------------------------------------------
 
 describe("POST /api/ask — streaming happy path", () => {
-  it("streams concatenated NDJSON content as text/plain with an X-Sources header", async () => {
+  it("forwards thinking + content as an x-ndjson event stream with an X-Sources header", async () => {
     routeFetch({
       tags: () => tagsResponse([DEFAULT_MODEL]),
       chat: () =>
+        // A reasoning model streams a thinking delta before the content deltas.
         chatStreamResponse([
+          '{"message":{"thinking":"Let me think"}}\n',
           '{"message":{"content":"Hello "}}\n',
           '{"message":{"content":"world"},"done":true}\n',
         ]),
@@ -296,7 +298,7 @@ describe("POST /api/ask — streaming happy path", () => {
 
     const res = await POST(postRequest(validBody()));
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toMatch(/text\/plain/);
+    expect(res.headers.get("content-type")).toMatch(/application\/x-ndjson/);
 
     const header = res.headers.get("x-sources");
     expect(header).toBeTruthy();
@@ -306,8 +308,24 @@ describe("POST /api/ask — streaming happy path", () => {
       { slug: "s", title: "T", dir: "concepts", score: 0.9 },
     ]);
 
-    const text = await res.text();
-    expect(text).toBe("Hello world");
+    // The body is NDJSON: one `{t,c}` event per line.
+    const body = await res.text();
+    const events = body
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as { t: string; c: string });
+
+    // `text` events concatenate to the answer.
+    const answer = events
+      .filter((e) => e.t === "text")
+      .map((e) => e.c)
+      .join("");
+    expect(answer).toBe("Hello world");
+
+    // The thinking phase is forwarded as a `think` event.
+    expect(
+      events.some((e) => e.t === "think" && e.c === "Let me think"),
+    ).toBe(true);
   });
 
   it("routes the chosen model into the chat request body with a signal", async () => {

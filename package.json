@@ -10,7 +10,9 @@
     "embed": "tsx scripts/embed-vault.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -61,6 +63,7 @@
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.2.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/d3-array": "^3.2.2",
     "@types/d3-scale": "^4.0.9",

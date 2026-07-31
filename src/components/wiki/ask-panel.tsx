@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Streamdown } from "streamdown";
 import {
   AlertTriangle,
+  Brain,
   CornerDownLeft,
   FileText,
   Loader2,
@@ -39,7 +40,15 @@ interface Source {
 interface Turn {
   role: "user" | "assistant";
   content: string;
+  /** Streamed reasoning ("thinking") phase from a reasoning model, if any. */
+  reasoning?: string;
   sources?: Source[];
+}
+
+/** One decoded NDJSON stream event from the `/api/ask` response body. */
+interface StreamEvent {
+  t: "think" | "text";
+  c: string;
 }
 
 interface IndexFreshness {
@@ -128,6 +137,40 @@ function isChatModel(name: string): boolean {
   return !name.toLowerCase().includes("embed");
 }
 
+interface ReasoningDisclosureProps {
+  text: string;
+  /** True while the turn is actively streaming its reasoning and no answer
+   *  has arrived yet — keeps the disclosure open so progress stays visible. */
+  live: boolean;
+}
+
+/** Collapsible "Reasoning" section for a reasoning model's thinking phase. It
+ *  auto-opens while thinking streams, then stays as-is so the user can collapse
+ *  it once the answer appears. */
+function ReasoningDisclosure({ text, live }: ReasoningDisclosureProps) {
+  const [open, setOpen] = React.useState(live);
+  React.useEffect(() => {
+    // Force open whenever we (re)enter the live-thinking phase.
+    if (live) setOpen(true);
+  }, [live]);
+
+  return (
+    <details
+      open={open}
+      onToggle={(e: React.SyntheticEvent<HTMLDetailsElement>) =>
+        setOpen(e.currentTarget.open)
+      }
+      className="border-border/60 text-muted-foreground rounded-lg border px-3 py-2 text-xs"
+    >
+      <summary className="flex cursor-pointer items-center gap-1.5 font-medium tracking-wide uppercase select-none">
+        <Brain className="h-3.5 w-3.5" />
+        Reasoning
+      </summary>
+      <div className="mt-2 whitespace-pre-wrap">{text}</div>
+    </details>
+  );
+}
+
 export function AskPanel() {
   const [turns, setTurns] = React.useState<Turn[]>([]);
   const [input, setInput] = React.useState("");
@@ -214,7 +257,9 @@ export function AskPanel() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model,
+            // Omit an unset model (health probe not yet resolved) so the server
+            // falls back to its default instead of rejecting model: "".
+            model: model || undefined,
             history,
             question: q,
             queryVector,
@@ -261,20 +306,58 @@ export function AskPanel() {
         setStreaming(true);
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          if (!chunk) continue;
+
+        // Append a decoded event to the last (assistant) turn: text deltas grow
+        // the answer, think deltas grow the collapsible reasoning section.
+        const applyEvent = (event: StreamEvent) => {
           setTurns((prev) => {
             if (prev.length === 0) return prev;
             const lastIndex = prev.length - 1;
             const last = prev[lastIndex];
             if (last.role !== "assistant") return prev;
-            const updated: Turn = { ...last, content: last.content + chunk };
+            const updated: Turn =
+              event.t === "think"
+                ? { ...last, reasoning: (last.reasoning ?? "") + event.c }
+                : { ...last, content: last.content + event.c };
             return [...prev.slice(0, lastIndex), updated];
           });
+        };
+
+        // Parse one NDJSON line; ignore blanks and any non-`{t,c}` payloads.
+        const flushLine = (line: string) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch {
+            // Partial or malformed line — skip until the newline completes it.
+            return;
+          }
+          if (!parsed || typeof parsed !== "object") return;
+          const { t, c } = parsed as Partial<StreamEvent>;
+          if ((t === "think" || t === "text") && typeof c === "string") {
+            applyEvent({ t, c });
+          }
+        };
+
+        // Buffer partial lines: NDJSON events are newline-delimited but a
+        // single read may split one, or carry several.
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let newlineIndex = buffer.indexOf("\n");
+          while (newlineIndex !== -1) {
+            const line = buffer.slice(0, newlineIndex);
+            buffer = buffer.slice(newlineIndex + 1);
+            flushLine(line);
+            newlineIndex = buffer.indexOf("\n");
+          }
         }
+        // Flush any trailing line without a terminating newline.
+        if (buffer.trim()) flushLine(buffer);
       } catch (err) {
         // An intentional abort (new submit or unmount) isn't a user-facing error.
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -426,9 +509,19 @@ export function AskPanel() {
             const isLastAssistant = i === lastIndex;
             const showCaret = isLastAssistant && streaming;
             const showThinking = isLastAssistant && loading && !turn.content;
+            // Keep the reasoning open while it's actively streaming ahead of the
+            // answer; collapse control passes to the user once content arrives.
+            const reasoningLive =
+              isLastAssistant && streaming && !turn.content;
 
             return (
               <div key={i} className="space-y-3">
+                {turn.reasoning && (
+                  <ReasoningDisclosure
+                    text={turn.reasoning}
+                    live={reasoningLive}
+                  />
+                )}
                 <div className="wiki-prose">
                   {turn.content && <Streamdown>{turn.content}</Streamdown>}
                   {showCaret && (

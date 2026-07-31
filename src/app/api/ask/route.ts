@@ -268,6 +268,10 @@ export async function POST(request: Request): Promise<Response> {
 
     const source = upstream.body;
     const encoder = new TextEncoder();
+    // Encode one NDJSON event: `{"t":"think"|"text","c":"<delta>"}\n`.
+    // JSON.stringify keeps newlines/quotes in the delta safely escaped.
+    const encodeEvent = (t: "think" | "text", c: string): Uint8Array =>
+      encoder.encode(`${JSON.stringify({ t, c })}\n`);
     let upstreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
     const stream = new ReadableStream<Uint8Array>({
@@ -281,7 +285,7 @@ export async function POST(request: Request): Promise<Response> {
           const trimmed = line.trim();
           if (!trimmed) return false;
           let json: {
-            message?: { content?: string };
+            message?: { content?: string; thinking?: string };
             error?: string;
             done?: boolean;
           };
@@ -292,11 +296,15 @@ export async function POST(request: Request): Promise<Response> {
             return false;
           }
           if (json.error) {
-            controller.enqueue(encoder.encode(`\n[error] ${json.error}`));
+            controller.enqueue(encodeEvent("text", `\n[error] ${json.error}`));
             return true; // signal done
           }
+          // Reasoning models emit a long `thinking` phase before any content;
+          // forward both as typed events so the client can render them apart.
+          const thinking = json.message?.thinking;
+          if (thinking) controller.enqueue(encodeEvent("think", thinking));
           const content = json.message?.content;
-          if (content) controller.enqueue(encoder.encode(content));
+          if (content) controller.enqueue(encodeEvent("text", content));
           return json.done === true;
         };
 
@@ -323,7 +331,8 @@ export async function POST(request: Request): Promise<Response> {
           if (buffer.trim()) flushLine(buffer);
         } catch (err) {
           controller.enqueue(
-            encoder.encode(
+            encodeEvent(
+              "text",
               `\n[error] Stream interrupted: ${
                 err instanceof Error ? err.message : "unknown error"
               }`,
@@ -342,7 +351,7 @@ export async function POST(request: Request): Promise<Response> {
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Type": "application/x-ndjson; charset=utf-8",
         "Cache-Control": "no-store",
         // Deduped sources travel out-of-band so the stream body stays pure text.
         "X-Sources": encodeURIComponent(JSON.stringify(sources)),
