@@ -73,7 +73,7 @@ function LoadGraph({ graph }: SigmaGraphProps) {
 }
 
 /** Wires click-to-navigate and hover highlighting. */
-function GraphEvents({ graph }: SigmaGraphProps) {
+function GraphEvents() {
   const router = useRouter();
   const sigma = useSigma();
   const registerEvents = useRegisterEvents();
@@ -138,7 +138,7 @@ export default function SigmaGraph({ graph }: SigmaGraphProps) {
       settings={settings}
     >
       <LoadGraph graph={graph} />
-      <GraphEvents graph={graph} />
+      <GraphEvents />
     </SigmaContainer>
   );
 }

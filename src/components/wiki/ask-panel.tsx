@@ -9,6 +9,7 @@ import {
   CornerDownLeft,
   FileText,
   Loader2,
+  RefreshCw,
   RotateCcw,
   Send,
 } from "lucide-react";
@@ -181,6 +182,10 @@ export function AskPanel() {
   const [error, setError] = React.useState<ErrorState | null>(null);
   const [health, setHealth] = React.useState<HealthState | null>(null);
   const [model, setModel] = React.useState("");
+  // One-click server-side reindex: `reindexing` gates the button; `reindexLine`
+  // mirrors the latest progress line streamed back from `/api/reindex`.
+  const [reindexing, setReindexing] = React.useState(false);
+  const [reindexLine, setReindexLine] = React.useState("");
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
@@ -193,27 +198,38 @@ export function AskPanel() {
 
   const busy = loading || streaming;
 
-  React.useEffect(() => {
-    let active = true;
-    fetch("/api/ask")
-      .then((res) => res.json() as Promise<HealthState>)
-      .then((data) => {
-        if (!active) return;
+  // Fetch the health probe and apply it. Reusable so it can be re-run after a
+  // reindex to flip the freshness badge. `isActive` lets the mount effect skip
+  // applying a result that resolves after unmount; later callers omit it.
+  const refreshHealth = React.useCallback(
+    async (isActive: () => boolean = () => true): Promise<void> => {
+      try {
+        const res = await fetch("/api/ask");
+        const data = (await res.json()) as HealthState;
+        if (!isActive()) return;
         setHealth(data);
         // Default the picker to the server's configured model, but never
         // override a choice the user already made.
         setModel((current) => current || data.model);
-      })
-      .catch(() => {
-        if (active) {
-          setHealth({
-            serving: false,
-            hasModel: false,
-            model: "",
-            models: [],
-          });
-        }
-      });
+      } catch {
+        if (!isActive()) return;
+        setHealth({
+          serving: false,
+          hasModel: false,
+          model: "",
+          models: [],
+        });
+      }
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    let active = true;
+    // refreshHealth only setState()s after `await fetch(...)`, never
+    // synchronously, so this is a network side-effect — not a cascading render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshHealth(() => active);
     // Warm the in-browser query embedder ahead of the first question.
     primeSemanticSearch();
     return () => {
@@ -221,7 +237,7 @@ export function AskPanel() {
       // Abort any in-flight stream so it stops burning local-model compute.
       abortRef.current?.abort();
     };
-  }, []);
+  }, [refreshHealth]);
 
   const ask = React.useCallback(
     async (rawQuestion: string) => {
@@ -383,6 +399,62 @@ export function AskPanel() {
     [busy, model],
   );
 
+  const runReindex = React.useCallback(async (): Promise<void> => {
+    if (reindexing) return;
+    setReindexing(true);
+    setReindexLine("Starting…");
+
+    try {
+      const res = await fetch("/api/reindex", { method: "POST" });
+
+      if (!res.ok) {
+        let message = `Reindex failed (HTTP ${res.status}).`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          // Non-JSON error body — keep the generic HTTP message.
+        }
+        setReindexLine(message);
+        return;
+      }
+
+      if (!res.body) {
+        setReindexLine("Reindex started but returned no output.");
+        await refreshHealth();
+        return;
+      }
+
+      // Stream the embed's plain-text progress; keep only the latest non-empty
+      // line, buffering partial lines across reads by newline.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed) setReindexLine(trimmed);
+        }
+      }
+      const tail = buffer.trim();
+      if (tail) setReindexLine(tail);
+
+      // Re-probe so the freshness badge flips to current once the index is fresh.
+      await refreshHealth();
+    } catch (err) {
+      setReindexLine(
+        err instanceof Error ? err.message : "Reindex failed unexpectedly.",
+      );
+    } finally {
+      setReindexing(false);
+    }
+  }, [reindexing, refreshHealth]);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -481,14 +553,35 @@ export function AskPanel() {
 
         {health?.freshness &&
           (health.freshness.stale ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-              <AlertTriangle className="h-3 w-3" />
-              {renderMessage(
-                `Index ${health.freshness.changed} note${
-                  health.freshness.changed === 1 ? "" : "s"
-                } behind — run \`pnpm embed\``,
+            <React.Fragment>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3 w-3" />
+                {renderMessage(
+                  `Index ${health.freshness.changed} note${
+                    health.freshness.changed === 1 ? "" : "s"
+                  } behind — run \`pnpm embed\``,
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => void runReindex()}
+                disabled={reindexing}
+                className="border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`h-3 w-3 ${reindexing ? "animate-spin" : ""}`}
+                />
+                {reindexing ? "Refreshing…" : "Refresh"}
+              </button>
+              {reindexing && reindexLine && (
+                <span
+                  className="text-muted-foreground max-w-[16rem] truncate text-xs"
+                  title={reindexLine}
+                >
+                  {reindexLine}
+                </span>
               )}
-            </span>
+            </React.Fragment>
           ) : (
             <span className="text-muted-foreground text-xs">Index current</span>
           ))}

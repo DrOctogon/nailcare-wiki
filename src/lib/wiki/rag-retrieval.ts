@@ -60,6 +60,15 @@ function loadChunks(): Promise<StoredChunk[]> {
   return chunksPromise;
 }
 
+/**
+ * Drop the cached chunk promise so the next `retrieveChunks` re-reads
+ * `.index/vault-chunks.json` from disk. Called after a successful reindex so a
+ * long-lived server process picks up freshly embedded chunks without a restart.
+ */
+export function invalidateChunks(): void {
+  chunksPromise = null;
+}
+
 /** Cosine similarity of two L2-normalized vectors (dot product). */
 function cosine(a: number[], b: number[]): number {
   let dot = 0;

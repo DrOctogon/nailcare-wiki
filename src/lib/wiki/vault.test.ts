@@ -17,7 +17,6 @@ const hasVault = fs.existsSync(WIKI_DIR);
 const suite = hasVault ? describe : describe.skip;
 
 if (!hasVault) {
-  // eslint-disable-next-line no-console
   console.warn(`[vault.test] WIKI_DIR not found at ${WIKI_DIR}; skipping.`);
 }
 
