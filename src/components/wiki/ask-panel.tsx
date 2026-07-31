@@ -2,33 +2,29 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Streamdown } from "streamdown";
 import {
   AlertTriangle,
   CornerDownLeft,
   FileText,
   Loader2,
+  RotateCcw,
   Send,
-  Sparkles,
 } from "lucide-react";
 
 import {
-  semanticSearch,
-  primeSemanticSearch,
-  type SemanticHit,
-} from "@/lib/wiki/semantic-search";
+  chunkSearch,
+  primeChunkSearch,
+  type ChunkHit,
+} from "@/lib/wiki/chunk-search";
 import { dirMeta } from "@/lib/wiki/labels";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
-const RETRIEVAL_LIMIT = 6;
+const RETRIEVAL_LIMIT = 8;
+const DEFAULT_MODEL = "llama3.2:3b";
 
 const EXAMPLE_QUESTIONS: readonly string[] = [
   "What's the difference between gel and acrylic nails?",
@@ -37,10 +33,17 @@ const EXAMPLE_QUESTIONS: readonly string[] = [
   "Which brands come up most in the research?",
 ];
 
+interface Turn {
+  role: "user" | "assistant";
+  content: string;
+  sources?: ChunkHit[];
+}
+
 interface HealthState {
   serving: boolean;
   hasModel: boolean;
   model: string;
+  models: string[];
 }
 
 interface ErrorState {
@@ -67,7 +70,12 @@ function friendlyError(status: number, body: ApiErrorBody): ErrorState {
     case "model_missing":
       return {
         code,
-        message: `Model \`${body.model ?? "llama3.2:3b"}\` not found. Run \`ollama pull ${body.model ?? "llama3.2:3b"}\`, then retry.`,
+        message: `Model \`${body.model ?? DEFAULT_MODEL}\` not found. Run \`ollama pull ${body.model ?? DEFAULT_MODEL}\`, then retry.`,
+      };
+    case "model_not_installed":
+      return {
+        code,
+        message: `Model \`${body.model ?? "selected"}\` isn't installed. Pick another or run \`ollama pull ${body.model ?? "selected"}\`.`,
       };
     default:
       return {
@@ -95,17 +103,49 @@ function renderMessage(message: string): React.ReactNode {
   );
 }
 
+/** Keep the highest-ranked hit per parent note for the source list. */
+function dedupeSourcesBySlug(hits: readonly ChunkHit[]): ChunkHit[] {
+  const seen = new Set<string>();
+  const unique: ChunkHit[] = [];
+  for (const hit of hits) {
+    if (seen.has(hit.slug)) continue;
+    seen.add(hit.slug);
+    unique.push(hit);
+  }
+  return unique;
+}
+
+/** Immutably drop a trailing assistant turn (used to undo a failed exchange). */
+function dropTrailingAssistant(turns: readonly Turn[]): Turn[] {
+  if (turns.length > 0 && turns[turns.length - 1].role === "assistant") {
+    return turns.slice(0, -1);
+  }
+  return [...turns];
+}
+
+/** Model names that only produce embeddings can't answer chat prompts. */
+function isChatModel(name: string): boolean {
+  return !name.toLowerCase().includes("embed");
+}
+
 export function AskPanel() {
-  const [question, setQuestion] = React.useState("");
-  const [answer, setAnswer] = React.useState("");
-  const [sources, setSources] = React.useState<SemanticHit[]>([]);
+  const [turns, setTurns] = React.useState<Turn[]>([]);
+  const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [streaming, setStreaming] = React.useState(false);
   const [error, setError] = React.useState<ErrorState | null>(null);
   const [health, setHealth] = React.useState<HealthState | null>(null);
+  const [model, setModel] = React.useState("");
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+  // Always-current view of `turns` so `ask` can read prior turns without
+  // becoming a fresh callback on every streamed token.
+  const turnsRef = React.useRef<Turn[]>([]);
+  React.useEffect(() => {
+    turnsRef.current = turns;
+  }, [turns]);
+
   const busy = loading || streaming;
 
   React.useEffect(() => {
@@ -113,13 +153,24 @@ export function AskPanel() {
     fetch("/api/ask")
       .then((res) => res.json() as Promise<HealthState>)
       .then((data) => {
-        if (active) setHealth(data);
+        if (!active) return;
+        setHealth(data);
+        // Default the picker to the server's configured model, but never
+        // override a choice the user already made.
+        setModel((current) => current || data.model);
       })
       .catch(() => {
-        if (active) setHealth({ serving: false, hasModel: false, model: "" });
+        if (active) {
+          setHealth({
+            serving: false,
+            hasModel: false,
+            model: "",
+            models: [],
+          });
+        }
       });
-    // Warm the in-browser retrieval model ahead of the first query.
-    primeSemanticSearch();
+    // Warm the in-browser chunk retrieval ahead of the first query.
+    primeChunkSearch();
     return () => {
       active = false;
       // Abort any in-flight stream so it stops burning local-model compute.
@@ -127,95 +178,179 @@ export function AskPanel() {
     };
   }, []);
 
-  const submit = React.useCallback(async () => {
-    const q = question.trim();
-    if (!q || busy) return;
+  const ask = React.useCallback(
+    async (rawQuestion: string) => {
+      const q = rawQuestion.trim();
+      if (!q || busy) return;
 
-    setError(null);
-    setAnswer("");
-    setSources([]);
-    setLoading(true);
+      // Cancel any prior in-flight stream, then track this one for cleanup.
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    // Cancel any prior in-flight stream, then track this one for unmount cleanup.
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+      // History is every completed turn that existed before this question.
+      const history = turnsRef.current.map((turn) => ({
+        role: turn.role,
+        content: turn.content,
+      }));
 
-    try {
-      const hits = await semanticSearch(q, RETRIEVAL_LIMIT);
-      setSources(hits);
+      setError(null);
+      setInput("");
+      setTurns((prev) => [...prev, { role: "user", content: q }]);
+      setLoading(true);
 
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, slugs: hits.map((h) => h.slug) }),
-        signal: controller.signal,
-      });
+      try {
+        const hits = await chunkSearch(q, RETRIEVAL_LIMIT);
 
-      if (!res.ok) {
-        let parsed: ApiErrorBody = {};
-        try {
-          parsed = (await res.json()) as ApiErrorBody;
-        } catch {
-          // fall through to generic message
-        }
-        setError(friendlyError(res.status, parsed));
-        return;
-      }
+        // Append the assistant turn to stream into; show unique parent notes.
+        setTurns((prev) => [
+          ...prev,
+          { role: "assistant", content: "", sources: dedupeSourcesBySlug(hits) },
+        ]);
 
-      if (!res.body) {
-        setError({
-          code: "no_body",
-          message: "The response stream was empty. Please retry.",
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            history,
+            question: q,
+            context: hits.map((h) => ({ title: h.title, text: h.text })),
+          }),
+          signal: controller.signal,
         });
-        return;
-      }
 
-      setLoading(false);
-      setStreaming(true);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        setAnswer((prev) => prev + decoder.decode(value, { stream: true }));
-      }
-    } catch (err) {
-      // An intentional abort (new submit or unmount) isn't a user-facing error.
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setError({
-        code: "network",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Network error while contacting the local model.",
-      });
-    } finally {
-      // Only clear busy state if this run is still the active one — a superseding
-      // submit has already taken over the flags otherwise.
-      if (abortRef.current === controller) {
+        if (!res.ok) {
+          let parsed: ApiErrorBody = {};
+          try {
+            parsed = (await res.json()) as ApiErrorBody;
+          } catch {
+            // fall through to generic message
+          }
+          setError(friendlyError(res.status, parsed));
+          // A failed turn shouldn't linger as an empty bubble.
+          setTurns(dropTrailingAssistant);
+          return;
+        }
+
+        if (!res.body) {
+          setError({
+            code: "no_body",
+            message: "The response stream was empty. Please retry.",
+          });
+          setTurns(dropTrailingAssistant);
+          return;
+        }
+
         setLoading(false);
-        setStreaming(false);
+        setStreaming(true);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          if (!chunk) continue;
+          setTurns((prev) => {
+            if (prev.length === 0) return prev;
+            const lastIndex = prev.length - 1;
+            const last = prev[lastIndex];
+            if (last.role !== "assistant") return prev;
+            const updated: Turn = { ...last, content: last.content + chunk };
+            return [...prev.slice(0, lastIndex), updated];
+          });
+        }
+      } catch (err) {
+        // An intentional abort (new submit or unmount) isn't a user-facing error.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError({
+          code: "network",
+          message:
+            err instanceof Error
+              ? err.message
+              : "Network error while contacting the local model.",
+        });
+        setTurns(dropTrailingAssistant);
+      } finally {
+        // Only clear busy state if this run is still the active one — a
+        // superseding submit has already taken over the flags otherwise.
+        if (abortRef.current === controller) {
+          setLoading(false);
+          setStreaming(false);
+        }
       }
-    }
-  }, [question, busy]);
+    },
+    [busy, model],
+  );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      void submit();
+      void ask(input);
     }
   };
 
   const useExample = (text: string) => {
-    setQuestion(text);
+    setInput(text);
     textareaRef.current?.focus();
   };
 
+  const newChat = () => {
+    if (busy) return;
+    abortRef.current?.abort();
+    setTurns([]);
+    setError(null);
+  };
+
   const ready = health?.serving && health.hasModel;
+  const chatModels = (health?.models ?? []).filter(isChatModel);
+  const lastIndex = turns.length - 1;
 
   return (
     <div className="space-y-6">
+      {/* Header: new chat + model picker */}
+      <div className="flex items-end justify-between gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={newChat}
+          disabled={busy || turns.length === 0}
+        >
+          <RotateCcw className="h-4 w-4" />
+          New chat
+        </Button>
+
+        <div className="flex flex-col items-end gap-1">
+          <label
+            htmlFor="ask-model"
+            className="text-muted-foreground text-xs font-medium"
+          >
+            Model
+          </label>
+          <label htmlFor="ask-model" className="sr-only">
+            Choose the local model to answer with
+          </label>
+          <select
+            id="ask-model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            disabled={busy || chatModels.length === 0}
+            className="border-input bg-background rounded-md border px-2.5 py-1.5 text-sm disabled:opacity-50"
+          >
+            {chatModels.length === 0 ? (
+              <option value={model}>{model || "No models"}</option>
+            ) : (
+              chatModels.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      </div>
+
       {/* Health status pill */}
       <div aria-live="polite">
         {health == null ? (
@@ -236,7 +371,7 @@ export function AskPanel() {
             <AlertTriangle className="h-3.5 w-3.5" />
             {health.serving
               ? renderMessage(
-                  `Model \`${health.model || "llama3.2:3b"}\` not installed — run \`ollama pull ${health.model || "llama3.2:3b"}\``,
+                  `Model \`${health.model || DEFAULT_MODEL}\` not installed — run \`ollama pull ${health.model || DEFAULT_MODEL}\``,
                 )
               : renderMessage(
                   "Ollama isn't running — start it with `ollama serve`",
@@ -244,6 +379,91 @@ export function AskPanel() {
           </span>
         )}
       </div>
+
+      {/* Conversation */}
+      {turns.length > 0 && (
+        <div className="space-y-6">
+          {turns.map((turn, i) => {
+            if (turn.role === "user") {
+              return (
+                <div key={i} className="flex justify-end">
+                  <div className="bg-muted text-foreground max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
+                    {turn.content}
+                  </div>
+                </div>
+              );
+            }
+
+            const isLastAssistant = i === lastIndex;
+            const showCaret = isLastAssistant && streaming;
+            const showThinking = isLastAssistant && loading && !turn.content;
+
+            return (
+              <div key={i} className="space-y-3">
+                <div className="wiki-prose">
+                  {turn.content && <Streamdown>{turn.content}</Streamdown>}
+                  {showCaret && (
+                    <span className="bg-foreground ml-0.5 inline-block h-4 w-1.5 animate-pulse align-middle" />
+                  )}
+                  {showThinking && (
+                    <span className="text-muted-foreground inline-flex items-center gap-2 text-sm">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Thinking…
+                    </span>
+                  )}
+                </div>
+
+                {turn.sources && turn.sources.length > 0 && (
+                  <div>
+                    <h2 className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+                      <FileText className="h-3.5 w-3.5" />
+                      Retrieved from {turn.sources.length} note
+                      {turn.sources.length === 1 ? "" : "s"}
+                    </h2>
+                    <ul className="grid gap-1.5">
+                      {turn.sources.map((hit) => {
+                        const m = dirMeta(hit.dir);
+                        return (
+                          <li key={hit.slug}>
+                            <Link
+                              href={`/wiki/${hit.slug}`}
+                              className="group hover:bg-accent flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors"
+                            >
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: m.accent }}
+                              />
+                              <span className="group-hover:text-foreground min-w-0 flex-1 truncate text-sm">
+                                {hit.title}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="shrink-0 text-xs"
+                              >
+                                {Math.round(hit.score * 100)}%
+                              </Badge>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Error card */}
+      {error && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex items-start gap-3 py-4 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-foreground/90">{renderMessage(error.message)}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Composer */}
       <div>
@@ -254,17 +474,21 @@ export function AskPanel() {
           <Textarea
             id="ask-input"
             ref={textareaRef}
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             rows={3}
-            placeholder="Ask anything about your nail-care research notes…"
+            placeholder={
+              turns.length === 0
+                ? "Ask anything about your nail-care research notes…"
+                : "Ask a follow-up…"
+            }
             className="resize-none pr-28"
             aria-describedby="ask-hint"
           />
           <Button
-            onClick={() => void submit()}
-            disabled={busy || !question.trim()}
+            onClick={() => void ask(input)}
+            disabled={busy || !input.trim()}
             size="sm"
             className="absolute right-2 bottom-2"
           >
@@ -284,92 +508,22 @@ export function AskPanel() {
           Press ⌘/Ctrl + Enter to send. Retrieval and the model both run locally.
         </p>
 
-        {/* Example chips */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {EXAMPLE_QUESTIONS.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              onClick={() => useExample(ex)}
-              className="border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-full border px-3 py-1 text-xs transition-colors"
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
+        {/* Example chips — only when the conversation is empty */}
+        {turns.length === 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {EXAMPLE_QUESTIONS.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => useExample(ex)}
+                className="border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-full border px-3 py-1 text-xs transition-colors"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Error card */}
-      {error && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="flex items-start gap-3 py-4 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p className="text-foreground/90">{renderMessage(error.message)}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Sources */}
-      {sources.length > 0 && (
-        <div>
-          <h2 className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
-            <FileText className="h-3.5 w-3.5" />
-            Retrieved from {sources.length} note
-            {sources.length === 1 ? "" : "s"}
-          </h2>
-          <ul className="grid gap-1.5">
-            {sources.map((hit) => {
-              const m = dirMeta(hit.dir);
-              return (
-                <li key={hit.slug}>
-                  <Link
-                    href={`/wiki/${hit.slug}`}
-                    className="group hover:bg-accent flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors"
-                  >
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: m.accent }}
-                    />
-                    <span className="group-hover:text-foreground min-w-0 flex-1 truncate text-sm">
-                      {hit.title}
-                    </span>
-                    <Badge variant="outline" className="shrink-0 text-xs">
-                      {Math.round(hit.score * 100)}%
-                    </Badge>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      {/* Answer */}
-      {(answer || streaming || loading) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="text-chart-1 h-4 w-4" />
-              Answer
-            </CardTitle>
-          </CardHeader>
-          <Separator />
-          <CardContent className="pt-4">
-            <div className="text-sm leading-relaxed whitespace-pre-wrap">
-              {answer}
-              {streaming && (
-                <span className="bg-foreground ml-0.5 inline-block h-4 w-1.5 animate-pulse align-middle" />
-              )}
-            </div>
-            {loading && !answer && (
-              <span className="text-muted-foreground inline-flex items-center gap-2 text-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Thinking…
-              </span>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

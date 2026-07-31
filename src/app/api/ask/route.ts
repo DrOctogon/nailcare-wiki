@@ -1,12 +1,12 @@
-import { getContextChunks, type ContextChunk } from "@/lib/wiki/rag";
-
 export const runtime = "nodejs";
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const MODEL = process.env.OLLAMA_MODEL ?? "llama3.2:3b";
 
-const MAX_SLUGS = 6;
 const HEALTH_TIMEOUT_MS = 2500;
+const MAX_HISTORY = 40;
+const MAX_CONTEXT = 12;
+const CONTEXT_CHAR_LIMIT = 2000;
 
 interface OllamaHealth {
   serving: boolean;
@@ -18,9 +18,21 @@ interface OllamaTagsResponse {
   models?: { name?: string }[];
 }
 
+type ChatRole = "system" | "user" | "assistant";
+
 interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: ChatRole;
   content: string;
+}
+
+interface HistoryTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface ContextNote {
+  title: string;
+  text: string;
 }
 
 /** Probe the local Ollama instance: is it up, and does it have our model? */
@@ -50,28 +62,54 @@ async function checkOllama(): Promise<OllamaHealth> {
   }
 }
 
+/** Narrow an unknown array element to a well-formed history turn. */
+function isHistoryTurn(value: unknown): value is HistoryTurn {
+  if (!value || typeof value !== "object") return false;
+  const turn = value as Record<string, unknown>;
+  return (
+    (turn.role === "user" || turn.role === "assistant") &&
+    typeof turn.content === "string"
+  );
+}
+
+/** Narrow an unknown array element to a well-formed context note. */
+function isContextNote(value: unknown): value is ContextNote {
+  if (!value || typeof value !== "object") return false;
+  const note = value as Record<string, unknown>;
+  return typeof note.title === "string" && typeof note.text === "string";
+}
+
 function buildMessages(
   question: string,
-  chunks: ContextChunk[],
+  history: HistoryTurn[],
+  context: ContextNote[],
 ): ChatMessage[] {
   const system =
     "You answer questions about a personal knowledge vault of nail-care and " +
-    "salon-business research notes. Use ONLY the information in the provided " +
-    "context notes to answer — do not rely on outside knowledge. Cite the note " +
-    "titles inline (e.g. “According to ‘Gel vs Acrylic’ …”) " +
-    "when you draw on them. If the context does not contain enough information " +
-    "to answer, say so plainly rather than guessing. Be concise.";
+    "salon-business research notes. Answer the LATEST question using ONLY the " +
+    "information in the provided context notes — do not rely on outside " +
+    "knowledge. Cite the note titles inline (e.g. “According to ‘Gel vs " +
+    "Acrylic’ …”) when you draw on them. If the context does not contain " +
+    "enough information to answer, say so plainly rather than guessing. This is " +
+    "a multi-turn conversation, so use the prior turns for continuity. Be " +
+    "concise. You may format your answer with Markdown — headings, lists, " +
+    "bold, and code where it helps.";
 
-  const contextBlocks = chunks.length
-    ? chunks
-        .map((chunk, i) => `${i + 1}. ### ${chunk.title}\n${chunk.text}`)
-        .join("\n\n")
-    : "(No matching notes were found in the vault.)";
+  const contextBlocks =
+    context
+      .map(
+        (note, i) => `${i + 1}. ### ${note.title}\n${note.text.slice(0, CONTEXT_CHAR_LIMIT)}`,
+      )
+      .join("\n\n") || "(no matching notes)";
 
   const user = `Context notes:\n\n${contextBlocks}\n\nQuestion: ${question}`;
 
   return [
     { role: "system", content: system },
+    ...history.map((turn): ChatMessage => ({
+      role: turn.role,
+      content: turn.content,
+    })),
     { role: "user", content: user },
   ];
 }
@@ -93,25 +131,52 @@ export async function POST(request: Request): Promise<Response> {
 
     const record =
       body && typeof body === "object" ? (body as Record<string, unknown>) : {};
-    const question = record.question;
-    const slugs = record.slugs;
+    const rawQuestion = record.question;
+    const rawHistory = record.history;
+    const rawContext = record.context;
+    const rawModel = record.model;
 
-    if (typeof question !== "string" || !question.trim()) {
+    if (typeof rawQuestion !== "string" || !rawQuestion.trim()) {
       return Response.json(
         { error: "`question` must be a non-empty string." },
         { status: 400 },
       );
     }
     if (
-      !Array.isArray(slugs) ||
-      slugs.length > 100 ||
-      !slugs.every((s): s is string => typeof s === "string")
+      !Array.isArray(rawHistory) ||
+      rawHistory.length > MAX_HISTORY ||
+      !rawHistory.every(isHistoryTurn)
     ) {
       return Response.json(
-        { error: "`slugs` must be an array of at most 100 strings." },
+        {
+          error: `\`history\` must be an array of at most ${MAX_HISTORY} { role: "user" | "assistant", content: string } turns.`,
+        },
         { status: 400 },
       );
     }
+    if (
+      !Array.isArray(rawContext) ||
+      rawContext.length > MAX_CONTEXT ||
+      !rawContext.every(isContextNote)
+    ) {
+      return Response.json(
+        {
+          error: `\`context\` must be an array of at most ${MAX_CONTEXT} { title: string, text: string } notes.`,
+        },
+        { status: 400 },
+      );
+    }
+    if (rawModel !== undefined && typeof rawModel !== "string") {
+      return Response.json(
+        { error: "`model` must be a string when provided." },
+        { status: 400 },
+      );
+    }
+
+    const question = rawQuestion.trim();
+    const history: HistoryTurn[] = rawHistory;
+    const context: ContextNote[] = rawContext;
+    const requestedModel = rawModel;
 
     const health = await checkOllama();
     if (!health.serving) {
@@ -123,24 +188,37 @@ export async function POST(request: Request): Promise<Response> {
         { status: 503 },
       );
     }
-    if (!health.hasModel) {
+
+    const chosen = requestedModel ?? MODEL;
+    if (!health.models.includes(chosen)) {
+      // The default model missing is a setup problem (503); an explicitly
+      // requested-but-absent model is a bad request (400).
+      if (requestedModel === undefined) {
+        return Response.json(
+          {
+            error: `Model \`${MODEL}\` is not installed. Run \`ollama pull ${MODEL}\`.`,
+            code: "model_missing",
+            model: MODEL,
+          },
+          { status: 503 },
+        );
+      }
       return Response.json(
         {
-          error: `Model \`${MODEL}\` is not installed. Run \`ollama pull ${MODEL}\`.`,
-          code: "model_missing",
-          model: MODEL,
+          error: `Model \`${chosen}\` is not installed. Run \`ollama pull ${chosen}\`.`,
+          code: "model_not_installed",
+          model: chosen,
         },
-        { status: 503 },
+        { status: 400 },
       );
     }
 
-    const chunks = await getContextChunks(slugs.slice(0, MAX_SLUGS));
-    const messages = buildMessages(question.trim(), chunks);
+    const messages = buildMessages(question, history, context);
 
     const upstream = await fetch(`${OLLAMA_HOST}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, messages, stream: true }),
+      body: JSON.stringify({ model: chosen, messages, stream: true }),
       // Propagate client disconnects so Ollama stops generating for abandoned requests.
       signal: request.signal,
     });
@@ -181,9 +259,7 @@ export async function POST(request: Request): Promise<Response> {
             return false;
           }
           if (json.error) {
-            controller.enqueue(
-              encoder.encode(`\n[error] ${json.error}`),
-            );
+            controller.enqueue(encoder.encode(`\n[error] ${json.error}`));
             return true; // signal done
           }
           const content = json.message?.content;

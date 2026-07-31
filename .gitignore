@@ -22,6 +22,7 @@
 
 # generated semantic index (reproduce with `pnpm embed`)
 /public/vault-vectors.json
+/public/vault-chunks.json
 
 # misc
 .DS_Store

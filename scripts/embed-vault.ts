@@ -36,6 +36,15 @@ interface Doc {
   vector: number[];
 }
 
+interface Chunk {
+  id: string;
+  slug: string;
+  title: string;
+  dir: string;
+  text: string;
+  vector: number[];
+}
+
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
   let entries: import("node:fs").Dirent[];
@@ -56,9 +65,9 @@ async function walk(dir: string): Promise<string[]> {
   return out;
 }
 
-/** Strip markdown/wikilink noise to a compact text blob for embedding. */
-function toEmbedText(title: string, body: string): string {
-  const clean = body
+/** Strip markdown/wikilink noise to a compact text blob (full, untruncated). */
+function cleanBody(content: string): string {
+  return content
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/^#.*$/gm, (h) => h.replace(/^#+\s*/, ""))
     .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t, a) => a || t)
@@ -66,7 +75,40 @@ function toEmbedText(title: string, body: string): string {
     .replace(/[*_`>#-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return `${title}. ${clean}`.slice(0, 1600);
+}
+
+/** Strip markdown/wikilink noise to a compact text blob for page embedding. */
+function toEmbedText(title: string, body: string): string {
+  return `${title}. ${cleanBody(body)}`.slice(0, 1600);
+}
+
+/**
+ * Split cleaned text into ~`size`-char windows on word boundaries with
+ * `overlap` chars of context carried between adjacent windows. Empty or
+ * whitespace-only chunks are dropped; text at or under `size` returns as one
+ * chunk (or nothing when empty).
+ */
+function chunkText(text: string, size = 900, overlap = 150): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= size) return [trimmed];
+
+  const words = trimmed.split(/\s+/);
+  const chunks: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current && current.length + 1 + word.length > size) {
+      chunks.push(current);
+      // Carry the trailing `overlap` chars into the next window for context.
+      const tail = current.slice(Math.max(0, current.length - overlap));
+      const boundary = tail.indexOf(" ");
+      current = boundary >= 0 ? tail.slice(boundary + 1) : "";
+    }
+    current = current ? `${current} ${word}` : word;
+  }
+  if (current) chunks.push(current);
+
+  return chunks.map((c) => c.trim()).filter((c) => c.length > 0);
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -81,7 +123,13 @@ async function main() {
 
   // Parse + assign slugs the same way the app does.
   const used = new Set<string>();
-  const raw: { slug: string; title: string; dir: string; text: string }[] = [];
+  const raw: {
+    slug: string;
+    title: string;
+    dir: string;
+    text: string;
+    body: string;
+  }[] = [];
   for (const filePath of files) {
     const rel = path.relative(WIKI_DIR, filePath);
     const segments = rel.split(path.sep);
@@ -101,7 +149,13 @@ async function main() {
     while (used.has(slug)) slug = `${slug}-${used.size}`;
     used.add(slug);
 
-    raw.push({ slug, title, dir, text: toEmbedText(title, content) });
+    raw.push({
+      slug,
+      title,
+      dir,
+      text: toEmbedText(title, content),
+      body: cleanBody(content),
+    });
   }
   console.log(`Embedding ${raw.length} pages with ${MODEL}…`);
 
@@ -147,6 +201,51 @@ async function main() {
     }),
   );
   console.log(`Wrote ${vectorsPath} (${docs.length} docs, dim ${dim})`);
+
+  // Chunk pass: finer-grained embeddings for sharper RAG retrieval. Uses the
+  // same extractor/model; each chunk is embedded with its title prefixed for
+  // context, but the raw chunk text is what gets stored.
+  console.log("Embedding chunks…");
+  const chunks: Chunk[] = [];
+  let c = 0;
+  for (const r of raw) {
+    const pieces = chunkText(r.body);
+    for (let i = 0; i < pieces.length; i++) {
+      const piece = pieces[i];
+      const output = await extractor(`${r.title}. ${piece}`, {
+        pooling: "mean",
+        normalize: true,
+      });
+      chunks.push({
+        id: `${r.slug}#${i}`,
+        slug: r.slug,
+        title: r.title,
+        dir: r.dir,
+        text: piece,
+        vector: Array.from(output.data as Float32Array),
+      });
+      if (++c % 200 === 0) console.log(`  ${c} chunks`);
+    }
+  }
+
+  const chunkDim = chunks[0]?.vector.length ?? dim;
+  const chunksPath = path.join(ROOT, "public/vault-chunks.json");
+  await fs.writeFile(
+    chunksPath,
+    JSON.stringify({
+      model: MODEL,
+      dim: chunkDim,
+      chunks: chunks.map((ch) => ({
+        id: ch.id,
+        slug: ch.slug,
+        title: ch.title,
+        dir: ch.dir,
+        text: ch.text,
+        vector: ch.vector.map((v) => Math.round(v * 1e4) / 1e4),
+      })),
+    }),
+  );
+  console.log(`Wrote ${chunksPath} (${chunks.length} chunks, dim ${chunkDim})`);
 }
 
 main().catch((err) => {
