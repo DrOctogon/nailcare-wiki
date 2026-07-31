@@ -4,9 +4,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 // HTTP contract, not disk I/O. `retrieveChunks` returns one canned chunk; the
 // route dedupes it into the `X-Sources` header.
 vi.mock("@/lib/wiki/rag-retrieval", () => ({
-  retrieveChunks: vi.fn(async () => [
-    { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
-  ]),
+  // New two-stage signature: retrieveChunks(question, queryVector, limit).
+  retrieveChunks: vi.fn(
+    async (_question: string, _queryVector: number[], _limit?: number) => [
+      { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
+    ],
+  ),
 }));
 vi.mock("@/lib/wiki/freshness", () => ({
   getIndexFreshness: vi.fn(async () => ({
@@ -19,6 +22,7 @@ vi.mock("@/lib/wiki/freshness", () => ({
 }));
 
 import { GET, POST } from "./route";
+import { retrieveChunks } from "@/lib/wiki/rag-retrieval";
 
 // The default model the route probes for when none is explicitly requested.
 const DEFAULT_MODEL = "llama3.2:3b";
@@ -299,6 +303,14 @@ describe("POST /api/ask — streaming happy path", () => {
     const res = await POST(postRequest(validBody()));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/application\/x-ndjson/);
+
+    // The route passes the trimmed question first, then the query vector, then
+    // the retrieval limit.
+    expect(vi.mocked(retrieveChunks)).toHaveBeenCalledWith(
+      "What is gel polish?",
+      expect.any(Array),
+      expect.any(Number),
+    );
 
     const header = res.headers.get("x-sources");
     expect(header).toBeTruthy();

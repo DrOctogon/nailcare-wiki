@@ -243,7 +243,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // Server-side retrieval: rank the on-disk chunk vectors against the
     // client-embedded query vector.
-    const chunks = await retrieveChunks(queryVector, RETRIEVAL_LIMIT);
+    const chunks = await retrieveChunks(question, queryVector, RETRIEVAL_LIMIT);
     const sources = dedupeSourcesBySlug(chunks);
 
     const messages = buildMessages(question, history, chunks);
