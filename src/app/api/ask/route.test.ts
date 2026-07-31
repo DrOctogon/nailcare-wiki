@@ -5,11 +5,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 // route dedupes it into the `X-Sources` header.
 vi.mock("@/lib/wiki/rag-retrieval", () => ({
   // New two-stage signature: retrieveChunks(question, queryVector, limit).
-  retrieveChunks: vi.fn(
-    async (_question: string, _queryVector: number[], _limit?: number) => [
-      { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
-    ],
-  ),
+  // Args are asserted via mock.calls, so the impl ignores them.
+  retrieveChunks: vi.fn(async () => [
+    { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
+  ]),
 }));
 vi.mock("@/lib/wiki/freshness", () => ({
   getIndexFreshness: vi.fn(async () => ({
