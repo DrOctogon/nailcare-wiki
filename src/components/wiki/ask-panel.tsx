@@ -556,11 +556,8 @@ export function AskPanel() {
             <React.Fragment>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-3 w-3" />
-                {renderMessage(
-                  `Index ${health.freshness.changed} note${
-                    health.freshness.changed === 1 ? "" : "s"
-                  } behind — run \`pnpm embed\``,
-                )}
+                Index {health.freshness.changed} note
+                {health.freshness.changed === 1 ? "" : "s"} behind
               </span>
               <button
                 type="button"

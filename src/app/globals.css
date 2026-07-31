@@ -284,3 +284,15 @@
   border-bottom: 1px dashed color-mix(in oklch, var(--muted-foreground) 45%, transparent);
   cursor: help;
 }
+
+/* Respect users who prefer reduced motion: neutralize animations/transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
