@@ -71,8 +71,11 @@ export function SearchCommand({ docs }: SearchCommandProps) {
     if (mode !== "hybrid") return;
     const q = query.trim();
     if (!q) {
+      // Intentional reset: clear stale results when the query empties.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setHybridHits([]);
       setLoading(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
       return;
     }
     let cancelled = false;

@@ -150,7 +150,9 @@ interface ReasoningDisclosureProps {
 function ReasoningDisclosure({ text, live }: ReasoningDisclosureProps) {
   const [open, setOpen] = React.useState(live);
   React.useEffect(() => {
-    // Force open whenever we (re)enter the live-thinking phase.
+    // Force open whenever we (re)enter the live-thinking phase — an intentional
+    // sync of local UI state to an incoming prop, not a cascading render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (live) setOpen(true);
   }, [live]);
 
@@ -388,7 +390,7 @@ export function AskPanel() {
     }
   };
 
-  const useExample = (text: string) => {
+  const fillExample = (text: string) => {
     setInput(text);
     textareaRef.current?.focus();
   };
@@ -637,7 +639,7 @@ export function AskPanel() {
               <button
                 key={ex}
                 type="button"
-                onClick={() => useExample(ex)}
+                onClick={() => fillExample(ex)}
                 className="border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-full border px-3 py-1 text-xs transition-colors"
               >
                 {ex}
