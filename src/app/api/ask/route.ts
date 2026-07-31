@@ -1,3 +1,6 @@
+import { retrieveChunks, type RetrievedChunk } from "@/lib/wiki/rag-retrieval";
+import { getIndexFreshness } from "@/lib/wiki/freshness";
+
 export const runtime = "nodejs";
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
@@ -5,8 +8,12 @@ const MODEL = process.env.OLLAMA_MODEL ?? "llama3.2:3b";
 
 const HEALTH_TIMEOUT_MS = 2500;
 const MAX_HISTORY = 40;
-const MAX_CONTEXT = 12;
 const CONTEXT_CHAR_LIMIT = 2000;
+const RETRIEVAL_LIMIT = 8;
+// The client embeds the query with MiniLM (384 dims); bound generously so any
+// reasonable sentence-embedding model is accepted but garbage is rejected.
+const MIN_VECTOR_DIM = 128;
+const MAX_VECTOR_DIM = 2048;
 
 interface OllamaHealth {
   serving: boolean;
@@ -30,9 +37,12 @@ interface HistoryTurn {
   content: string;
 }
 
-interface ContextNote {
+/** A deduped source note surfaced to the client via the `X-Sources` header. */
+interface Source {
+  slug: string;
   title: string;
-  text: string;
+  dir: string;
+  score: number;
 }
 
 /** Probe the local Ollama instance: is it up, and does it have our model? */
@@ -72,17 +82,37 @@ function isHistoryTurn(value: unknown): value is HistoryTurn {
   );
 }
 
-/** Narrow an unknown array element to a well-formed context note. */
-function isContextNote(value: unknown): value is ContextNote {
-  if (!value || typeof value !== "object") return false;
-  const note = value as Record<string, unknown>;
-  return typeof note.title === "string" && typeof note.text === "string";
+/** Validate an unknown value as a query embedding vector. */
+function isQueryVector(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= MIN_VECTOR_DIM &&
+    value.length <= MAX_VECTOR_DIM &&
+    value.every((n) => typeof n === "number" && Number.isFinite(n))
+  );
+}
+
+/** Keep the highest-ranked chunk per parent note for the source header. */
+function dedupeSourcesBySlug(chunks: readonly RetrievedChunk[]): Source[] {
+  const seen = new Set<string>();
+  const unique: Source[] = [];
+  for (const chunk of chunks) {
+    if (seen.has(chunk.slug)) continue;
+    seen.add(chunk.slug);
+    unique.push({
+      slug: chunk.slug,
+      title: chunk.title,
+      dir: chunk.dir,
+      score: Math.round(chunk.score * 100) / 100,
+    });
+  }
+  return unique;
 }
 
 function buildMessages(
   question: string,
   history: HistoryTurn[],
-  context: ContextNote[],
+  context: readonly RetrievedChunk[],
 ): ChatMessage[] {
   const system =
     "You answer questions about a personal knowledge vault of nail-care and " +
@@ -117,7 +147,9 @@ function buildMessages(
 /** Report Ollama availability + the configured model, for the client status pill. */
 export async function GET(): Promise<Response> {
   const { serving, hasModel, models } = await checkOllama();
-  return Response.json({ serving, model: MODEL, hasModel, models });
+  // Index freshness is best-effort — never let it break the health check.
+  const freshness = await getIndexFreshness().catch(() => undefined);
+  return Response.json({ serving, model: MODEL, hasModel, models, freshness });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -133,7 +165,7 @@ export async function POST(request: Request): Promise<Response> {
       body && typeof body === "object" ? (body as Record<string, unknown>) : {};
     const rawQuestion = record.question;
     const rawHistory = record.history;
-    const rawContext = record.context;
+    const rawQueryVector = record.queryVector;
     const rawModel = record.model;
 
     if (typeof rawQuestion !== "string" || !rawQuestion.trim()) {
@@ -154,14 +186,10 @@ export async function POST(request: Request): Promise<Response> {
         { status: 400 },
       );
     }
-    if (
-      !Array.isArray(rawContext) ||
-      rawContext.length > MAX_CONTEXT ||
-      !rawContext.every(isContextNote)
-    ) {
+    if (!isQueryVector(rawQueryVector)) {
       return Response.json(
         {
-          error: `\`context\` must be an array of at most ${MAX_CONTEXT} { title: string, text: string } notes.`,
+          error: `\`queryVector\` must be an array of ${MIN_VECTOR_DIM}–${MAX_VECTOR_DIM} finite numbers.`,
         },
         { status: 400 },
       );
@@ -175,7 +203,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const question = rawQuestion.trim();
     const history: HistoryTurn[] = rawHistory;
-    const context: ContextNote[] = rawContext;
+    const queryVector: number[] = rawQueryVector;
     const requestedModel = rawModel;
 
     const health = await checkOllama();
@@ -213,7 +241,12 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
-    const messages = buildMessages(question, history, context);
+    // Server-side retrieval: rank the on-disk chunk vectors against the
+    // client-embedded query vector.
+    const chunks = await retrieveChunks(queryVector, RETRIEVAL_LIMIT);
+    const sources = dedupeSourcesBySlug(chunks);
+
+    const messages = buildMessages(question, history, chunks);
 
     const upstream = await fetch(`${OLLAMA_HOST}/api/chat`, {
       method: "POST",
@@ -311,6 +344,8 @@ export async function POST(request: Request): Promise<Response> {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
+        // Deduped sources travel out-of-band so the stream body stays pure text.
+        "X-Sources": encodeURIComponent(JSON.stringify(sources)),
       },
     });
   } catch (err) {

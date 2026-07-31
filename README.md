@@ -74,11 +74,18 @@ to run if the server or model is missing.
   "Related by meaning" rail; imported at build time). *Committed.*
 - `public/vault-vectors.json` — page vectors, fetched on demand by hybrid search.
   *Gitignored — run `pnpm embed`.*
-- `public/vault-chunks.json` — ~2.6k overlapping note chunks + vectors, powering RAG
-  retrieval for `/ask`. *Gitignored — run `pnpm embed`.*
+- `.index/vault-chunks.json` — ~2.7k overlapping note chunks + vectors, read
+  server-side for `/ask` RAG retrieval (never shipped to the browser).
+  *Gitignored — run `pnpm embed`.*
+- `.index/manifest.json` — per-note content hashes + `builtAt`, powering **incremental
+  re-embeds** and the freshness check. *Gitignored.*
 
-Re-run after editing the vault to refresh all three. Without them the app still runs;
-hybrid search and Ask degrade (empty results) while keyword search is unaffected.
+Embedding is **incremental**: a re-run only re-embeds notes whose content changed
+(unchanged notes reuse cached vectors), so refreshing after a few edits takes seconds
+rather than minutes. The Ask UI shows an **index-freshness badge** — if the live vault
+has drifted from the last embed, it tells you how many notes are behind and to run
+`pnpm embed`. Without any index the app still runs; hybrid search and Ask degrade
+(empty results) while keyword search is unaffected.
 
 > `pnpm exec`/scripts run a dependency check that fails while native builds
 > (`onnxruntime-node`, `esbuild`, `protobufjs`) are unapproved. If you hit that,

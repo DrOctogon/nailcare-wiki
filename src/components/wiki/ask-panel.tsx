@@ -12,18 +12,13 @@ import {
   Send,
 } from "lucide-react";
 
-import {
-  chunkSearch,
-  primeChunkSearch,
-  type ChunkHit,
-} from "@/lib/wiki/chunk-search";
+import { embedQuery, primeSemanticSearch } from "@/lib/wiki/semantic-search";
 import { dirMeta } from "@/lib/wiki/labels";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const RETRIEVAL_LIMIT = 8;
 const DEFAULT_MODEL = "llama3.2:3b";
 
 const EXAMPLE_QUESTIONS: readonly string[] = [
@@ -33,10 +28,26 @@ const EXAMPLE_QUESTIONS: readonly string[] = [
   "Which brands come up most in the research?",
 ];
 
+/** A retrieved source note, surfaced by the server via the `X-Sources` header. */
+interface Source {
+  slug: string;
+  title: string;
+  dir: string;
+  score: number;
+}
+
 interface Turn {
   role: "user" | "assistant";
   content: string;
-  sources?: ChunkHit[];
+  sources?: Source[];
+}
+
+interface IndexFreshness {
+  builtAt: string | null;
+  total: number;
+  changed: number;
+  removed: number;
+  stale: boolean;
 }
 
 interface HealthState {
@@ -44,6 +55,7 @@ interface HealthState {
   hasModel: boolean;
   model: string;
   models: string[];
+  freshness?: IndexFreshness;
 }
 
 interface ErrorState {
@@ -103,18 +115,6 @@ function renderMessage(message: string): React.ReactNode {
   );
 }
 
-/** Keep the highest-ranked hit per parent note for the source list. */
-function dedupeSourcesBySlug(hits: readonly ChunkHit[]): ChunkHit[] {
-  const seen = new Set<string>();
-  const unique: ChunkHit[] = [];
-  for (const hit of hits) {
-    if (seen.has(hit.slug)) continue;
-    seen.add(hit.slug);
-    unique.push(hit);
-  }
-  return unique;
-}
-
 /** Immutably drop a trailing assistant turn (used to undo a failed exchange). */
 function dropTrailingAssistant(turns: readonly Turn[]): Turn[] {
   if (turns.length > 0 && turns[turns.length - 1].role === "assistant") {
@@ -169,8 +169,8 @@ export function AskPanel() {
           });
         }
       });
-    // Warm the in-browser chunk retrieval ahead of the first query.
-    primeChunkSearch();
+    // Warm the in-browser query embedder ahead of the first question.
+    primeSemanticSearch();
     return () => {
       active = false;
       // Abort any in-flight stream so it stops burning local-model compute.
@@ -200,12 +200,14 @@ export function AskPanel() {
       setLoading(true);
 
       try {
-        const hits = await chunkSearch(q, RETRIEVAL_LIMIT);
+        // Embed the query in-browser; the server holds the chunk vectors and
+        // does retrieval, returning sources via the `X-Sources` header.
+        const queryVector = await embedQuery(q);
 
-        // Append the assistant turn to stream into; show unique parent notes.
+        // Append the assistant turn to stream into; sources arrive via header.
         setTurns((prev) => [
           ...prev,
-          { role: "assistant", content: "", sources: dedupeSourcesBySlug(hits) },
+          { role: "assistant", content: "", sources: [] },
         ]);
 
         const res = await fetch("/api/ask", {
@@ -215,7 +217,7 @@ export function AskPanel() {
             model,
             history,
             question: q,
-            context: hits.map((h) => ({ title: h.title, text: h.text })),
+            queryVector,
           }),
           signal: controller.signal,
         });
@@ -241,6 +243,19 @@ export function AskPanel() {
           setTurns(dropTrailingAssistant);
           return;
         }
+
+        // The server already deduped by slug; patch the sources onto the turn.
+        const rawSources = res.headers.get("X-Sources");
+        const sources: Source[] = rawSources
+          ? (JSON.parse(decodeURIComponent(rawSources)) as Source[])
+          : [];
+        setTurns((prev) => {
+          if (prev.length === 0) return prev;
+          const lastIndex = prev.length - 1;
+          const last = prev[lastIndex];
+          if (last.role !== "assistant") return prev;
+          return [...prev.slice(0, lastIndex), { ...last, sources }];
+        });
 
         setLoading(false);
         setStreaming(true);
@@ -351,8 +366,8 @@ export function AskPanel() {
         </div>
       </div>
 
-      {/* Health status pill */}
-      <div aria-live="polite">
+      {/* Health status pill + index freshness badge */}
+      <div aria-live="polite" className="flex flex-wrap items-center gap-2">
         {health == null ? (
           <span className="text-muted-foreground inline-flex items-center gap-2 text-sm">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -378,6 +393,20 @@ export function AskPanel() {
                 )}
           </span>
         )}
+
+        {health?.freshness &&
+          (health.freshness.stale ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              {renderMessage(
+                `Index ${health.freshness.changed} note${
+                  health.freshness.changed === 1 ? "" : "s"
+                } behind — run \`pnpm embed\``,
+              )}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-xs">Index current</span>
+          ))}
       </div>
 
       {/* Conversation */}

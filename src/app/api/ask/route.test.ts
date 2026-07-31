@@ -1,8 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Server-side retrieval + freshness are mocked so the route tests exercise the
+// HTTP contract, not disk I/O. `retrieveChunks` returns one canned chunk; the
+// route dedupes it into the `X-Sources` header.
+vi.mock("@/lib/wiki/rag-retrieval", () => ({
+  retrieveChunks: vi.fn(async () => [
+    { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
+  ]),
+}));
+vi.mock("@/lib/wiki/freshness", () => ({
+  getIndexFreshness: vi.fn(async () => ({
+    builtAt: "2026-01-01T00:00:00Z",
+    total: 1,
+    changed: 0,
+    removed: 0,
+    stale: false,
+  })),
+}));
+
 import { GET, POST } from "./route";
 
 // The default model the route probes for when none is explicitly requested.
 const DEFAULT_MODEL = "llama3.2:3b";
+
+// A valid query embedding: 384 dims (MiniLM), inside the accepted 128–2048 band.
+const validVector = () => Array(384).fill(0.1);
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -67,14 +89,14 @@ function routeFetch(handlers: {
 const validBody = (overrides: Record<string, unknown> = {}) => ({
   question: "What is gel polish?",
   history: [],
-  context: [],
+  queryVector: validVector(),
   ...overrides,
 });
 
 // --- GET -------------------------------------------------------------------
 
 describe("GET /api/ask", () => {
-  it("returns serving/model/hasModel/models from the tags probe", async () => {
+  it("returns serving/model/hasModel/models/freshness from the tags probe", async () => {
     routeFetch({ tags: () => tagsResponse([DEFAULT_MODEL, "mistral:7b"]) });
 
     const res = await GET();
@@ -87,6 +109,14 @@ describe("GET /api/ask", () => {
     });
     expect(Array.isArray(body.models)).toBe(true);
     expect(body.models).toContain(DEFAULT_MODEL);
+    // Freshness comes straight from the mocked getIndexFreshness().
+    expect(body.freshness).toEqual({
+      builtAt: "2026-01-01T00:00:00Z",
+      total: 1,
+      changed: 0,
+      removed: 0,
+      stale: false,
+    });
   });
 
   it("reports not serving when the probe fails", async () => {
@@ -116,7 +146,9 @@ describe("POST /api/ask — request validation", () => {
 
   it("400 on missing question", async () => {
     routeFetch({});
-    const res = await POST(postRequest({ history: [], context: [] }));
+    const res = await POST(
+      postRequest({ history: [], queryVector: validVector() }),
+    );
     expect(res.status).toBe(400);
   });
 
@@ -159,29 +191,50 @@ describe("POST /api/ask — request validation", () => {
     expect(res.status).toBe(400);
   });
 
-  it("400 when context is not an array", async () => {
+  it("400 when queryVector is missing", async () => {
     routeFetch({});
-    const res = await POST(postRequest(validBody({ context: {} })));
+    const body = validBody();
+    delete (body as Record<string, unknown>).queryVector;
+    const res = await POST(postRequest(body));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/context/);
+    expect((await res.json()).error).toMatch(/queryVector/);
   });
 
-  it("400 when context exceeds 12 notes", async () => {
+  it("400 when queryVector is not an array", async () => {
     routeFetch({});
-    const context = Array.from({ length: 13 }, (_v, i) => ({
-      title: `t${i}`,
-      text: "body",
-    }));
-    const res = await POST(postRequest(validBody({ context })));
+    const res = await POST(postRequest(validBody({ queryVector: "nope" })));
     expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/queryVector/);
   });
 
-  it("400 when a context element has the wrong shape", async () => {
+  it("400 when queryVector is too short (below the min dimension)", async () => {
     routeFetch({});
     const res = await POST(
-      postRequest(validBody({ context: [{ title: "only title" }] })),
+      postRequest(validBody({ queryVector: Array(10).fill(0.1) })),
     );
     expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/queryVector/);
+  });
+
+  it("400 when queryVector is too long (above the max dimension)", async () => {
+    routeFetch({});
+    const res = await POST(
+      postRequest(validBody({ queryVector: Array(4096).fill(0.1) })),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/queryVector/);
+  });
+
+  it("400 when queryVector contains a non-finite element", async () => {
+    routeFetch({});
+    // Infinity/NaN can't survive JSON serialization, so send raw JSON where the
+    // element is a JSON `null` — still not a finite number, so it is rejected.
+    const vec = Array(384).fill(0.1);
+    vec[0] = null as unknown as number;
+    const res = await POST(postRequest(validBody({ queryVector: vec })));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/queryVector/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("400 when model is not a string", async () => {
@@ -231,7 +284,7 @@ describe("POST /api/ask — Ollama availability", () => {
 // --- POST happy path -------------------------------------------------------
 
 describe("POST /api/ask — streaming happy path", () => {
-  it("streams concatenated NDJSON content as text/plain", async () => {
+  it("streams concatenated NDJSON content as text/plain with an X-Sources header", async () => {
     routeFetch({
       tags: () => tagsResponse([DEFAULT_MODEL]),
       chat: () =>
@@ -244,6 +297,14 @@ describe("POST /api/ask — streaming happy path", () => {
     const res = await POST(postRequest(validBody()));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/text\/plain/);
+
+    const header = res.headers.get("x-sources");
+    expect(header).toBeTruthy();
+    const sources = JSON.parse(decodeURIComponent(header!));
+    // Deduped from the mocked retrieveChunks result (text dropped, score kept).
+    expect(sources).toEqual([
+      { slug: "s", title: "T", dir: "concepts", score: 0.9 },
+    ]);
 
     const text = await res.text();
     expect(text).toBe("Hello world");

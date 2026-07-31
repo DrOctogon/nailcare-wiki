@@ -22,7 +22,7 @@
 
 # generated semantic index (reproduce with `pnpm embed`)
 /public/vault-vectors.json
-/public/vault-chunks.json
+/.index/
 
 # misc
 .DS_Store
@@ -43,3 +43,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/public/vault-chunks.json
