@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, FileText, Link2, MapPin, Sparkles } from "lucide-react";
+import { Clock, FileText, Link2, MapPin, Pencil, Sparkles } from "lucide-react";
 
 import {
   getAllPageMetas,
@@ -11,6 +11,7 @@ import {
 import type { WikiLink, WikiPageMeta } from "@/lib/wiki/types";
 import { dirMeta, statusVariant } from "@/lib/wiki/labels";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -99,6 +100,16 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
                 {meta.singular}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="no-print"
+                  nativeButton={false}
+                  render={<Link href={`/wiki/${page.slug}/edit`} />}
+                >
+                  <Pencil data-icon="inline-start" />
+                  Edit
+                </Button>
                 <BookmarkButton
                   slug={page.slug}
                   title={page.title}
