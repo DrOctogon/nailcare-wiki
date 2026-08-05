@@ -11,6 +11,8 @@ import {
   CalendarClock,
   MessageCircleQuestion,
   BarChart3,
+  BookmarkCheck,
+  Newspaper,
 } from "lucide-react";
 
 import { dirMeta } from "@/lib/wiki/labels";
@@ -45,7 +47,9 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
     { href: "/ask", label: "Ask the Vault", icon: MessageCircleQuestion },
     { href: "/graph", label: "Knowledge Graph", icon: Network },
     { href: "/timeline", label: "Timeline", icon: CalendarClock },
+    { href: "/digest", label: "Digest", icon: Newspaper },
     { href: "/tags", label: "Tags", icon: Tags },
+    { href: "/bookmarks", label: "Reading Queue", icon: BookmarkCheck },
     { href: "/insights", label: "Insights", icon: BarChart3 },
   ];
 

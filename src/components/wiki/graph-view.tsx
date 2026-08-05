@@ -18,27 +18,21 @@ const SigmaGraph = dynamic(() => import("./sigma-graph"), {
 
 interface GraphViewProps {
   graph: WikiGraph;
+  /** slug → tags, only for graph nodes that carry tags (payload kept small). */
+  nodeTags: Record<string, string[]>;
+  /** Most common tags among graph nodes, most frequent first. */
+  topTags: { tag: string; count: number }[];
 }
 
-export function GraphView({ graph }: GraphViewProps) {
+export function GraphView({ graph, nodeTags, topTags }: GraphViewProps) {
   return (
     <div className="relative h-full w-full overflow-hidden">
-      <SigmaGraph graph={graph} />
-
-      {/* Encoding caption */}
-      <div className="bg-card/80 pointer-events-none absolute top-3 left-3 rounded-lg border px-3 py-2.5 text-xs shadow-sm backdrop-blur">
-        <div className="text-foreground font-medium tracking-tight">
-          {graph.nodes.length} notes · {graph.links.length} links
-        </div>
-        <div className="text-muted-foreground mt-1 leading-relaxed">
-          Colored by <span className="text-foreground">cluster</span> · sized by{" "}
-          <span className="text-foreground">PageRank</span>
-        </div>
-      </div>
+      <SigmaGraph graph={graph} nodeTags={nodeTags} topTags={topTags} />
 
       {/* Hint */}
-      <div className="text-muted-foreground pointer-events-none absolute bottom-3 left-3 text-xs">
-        Click a node to open · hover to isolate · scroll to zoom · drag to pan
+      <div className="text-muted-foreground pointer-events-none absolute right-3 bottom-3 text-right text-xs">
+        Click a node to open · hover to isolate · toggle Focus to explore
+        neighbors · scroll to zoom · drag to pan
       </div>
     </div>
   );

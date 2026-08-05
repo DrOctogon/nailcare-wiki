@@ -11,6 +11,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { NavBeacon } from "@/lib/analytics";
 import { PwaRegister } from "@/components/pwa-register";
+import { WikilinkHover } from "@/components/wiki/wikilink-hover";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -81,6 +82,7 @@ export default async function RootLayout({
           <Toaster />
           <NavBeacon />
           <PwaRegister />
+          <WikilinkHover />
         </ThemeProvider>
       </body>
     </html>

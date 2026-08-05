@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Toc } from "@/components/wiki/toc";
 import { BacklinksPanel } from "@/components/wiki/backlinks-panel";
 import { ExportMenu } from "@/components/wiki/export-menu";
+import { BookmarkButton } from "@/components/wiki/bookmark-button";
 import { ProseHighlight } from "@/components/wiki/prose-highlight";
 
 interface WikiPageProps {
@@ -97,7 +98,15 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
                 />
                 {meta.singular}
               </div>
-              <ExportMenu slug={page.slug} title={page.title} />
+              <div className="flex items-center gap-2">
+                <BookmarkButton
+                  slug={page.slug}
+                  title={page.title}
+                  dir={page.dir}
+                  type={page.type}
+                />
+                <ExportMenu slug={page.slug} title={page.title} />
+              </div>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
               {page.title}

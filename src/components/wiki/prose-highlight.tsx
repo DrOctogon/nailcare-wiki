@@ -124,7 +124,7 @@ function wrapMatch(match: TextMatch): HTMLElement | null {
 
   const mark = document.createElement("mark");
   mark.className = HIGHLIGHT_TAILWIND;
-  mark.setAttribute("data-vault-highlight", "true");
+  mark.setAttribute(HIGHLIGHT_CLASS, "true");
 
   range.surroundContents(mark);
   return mark;
