@@ -322,7 +322,7 @@ describe("POST /api/ask — streaming happy path", () => {
     const sources = JSON.parse(decodeURIComponent(header!));
     // Deduped from the mocked retrieveChunks result (text dropped, score kept).
     expect(sources).toEqual([
-      { slug: "s", title: "T", dir: "concepts", score: 0.9 },
+      { slug: "s", title: "T", dir: "concepts", score: 0.9, text: "ctx" },
     ]);
 
     // The body is NDJSON: one `{t,c}` event per line.

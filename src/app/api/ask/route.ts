@@ -47,7 +47,14 @@ interface Source {
   title: string;
   dir: string;
   score: number;
+  /** A short snippet of the matched chunk, so the citation link can highlight
+   *  the actual passage on the target note (via `?hl=`). */
+  text: string;
 }
+
+/** Longest source snippet shipped in the header — kept small so `X-Sources`
+ *  (an HTTP header) stays well under server limits even with several sources. */
+const SOURCE_SNIPPET_MAX = 140;
 
 /** Probe the local Ollama instance: is it up, and does it have our model? */
 async function checkOllama(): Promise<OllamaHealth> {
@@ -108,6 +115,7 @@ function dedupeSourcesBySlug(chunks: readonly RetrievedChunk[]): Source[] {
       title: chunk.title,
       dir: chunk.dir,
       score: Math.round(chunk.score * 100) / 100,
+      text: chunk.text.replace(/\s+/g, " ").trim().slice(0, SOURCE_SNIPPET_MAX),
     });
   }
   return unique;

@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Toc } from "@/components/wiki/toc";
 import { BacklinksPanel } from "@/components/wiki/backlinks-panel";
 import { ExportMenu } from "@/components/wiki/export-menu";
+import { ProseHighlight } from "@/components/wiki/prose-highlight";
 
 interface WikiPageProps {
   params: Promise<{ slug: string }>;
@@ -143,6 +144,7 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
             className="wiki-prose max-w-none"
             dangerouslySetInnerHTML={{ __html: page.html }}
           />
+          <ProseHighlight />
         </div>
 
         {/* Right rail */}

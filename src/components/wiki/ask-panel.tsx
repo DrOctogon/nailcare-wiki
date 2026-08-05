@@ -8,14 +8,24 @@ import {
   Brain,
   CornerDownLeft,
   FileText,
+  History,
   Loader2,
   RefreshCw,
   RotateCcw,
   Send,
+  Trash2,
 } from "lucide-react";
 
 import { embedQuery, primeSemanticSearch } from "@/lib/wiki/semantic-search";
 import { dirMeta } from "@/lib/wiki/labels";
+import { logEvent } from "@/lib/analytics";
+import {
+  deleteThread,
+  listThreads,
+  newThreadId,
+  saveThread,
+  type SavedThread,
+} from "@/lib/ask-history";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +46,15 @@ interface Source {
   title: string;
   dir: string;
   score: number;
+  /** The matched chunk text, when the server includes it — used to build a
+   *  highlight snippet for the citation link. Absent today (the header carries
+   *  only slug/title/dir/score), so we fall back to the title. */
+  text?: string;
+}
+
+/** The `/api/expand` HyDE response body. */
+interface ExpandResponse {
+  text?: string;
 }
 
 interface Turn {
@@ -138,6 +157,45 @@ function isChatModel(name: string): boolean {
   return !name.toLowerCase().includes("embed");
 }
 
+const HL_SNIPPET_MAX = 120;
+
+/** A short (~120 char) distinctive substring to seed the wiki page highlight.
+ *  Prefers the matched chunk `text`; falls back to the note `title` when the
+ *  `X-Sources` header doesn't carry chunk text. Trimmed to a word boundary. */
+function highlightSnippet(source: Source): string {
+  const raw = (source.text ?? source.title ?? "").trim();
+  if (raw.length <= HL_SNIPPET_MAX) return raw;
+  const clipped = raw.slice(0, HL_SNIPPET_MAX);
+  const lastSpace = clipped.lastIndexOf(" ");
+  // Only trim to the last space if it keeps the snippet reasonably long.
+  return lastSpace > HL_SNIPPET_MAX / 2 ? clipped.slice(0, lastSpace) : clipped;
+}
+
+/** Build the citation href, carrying a highlight snippet when we have one. */
+function sourceHref(source: Source): string {
+  const snippet = highlightSnippet(source);
+  return snippet
+    ? `/wiki/${source.slug}?hl=${encodeURIComponent(snippet)}`
+    : `/wiki/${source.slug}`;
+}
+
+/** Compact "time ago" label for saved-thread rows. */
+function relativeTime(timestamp: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.round(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.round(days / 365)}y ago`;
+}
+
 interface ReasoningDisclosureProps {
   text: string;
   /** True while the turn is actively streaming its reasoning and no answer
@@ -186,9 +244,18 @@ export function AskPanel() {
   // mirrors the latest progress line streamed back from `/api/reindex`.
   const [reindexing, setReindexing] = React.useState(false);
   const [reindexLine, setReindexLine] = React.useState("");
+  // HyDE query expansion: rewrite the question into a hypothetical answer and
+  // embed THAT for retrieval. On by default; falls back to the raw question.
+  const [hyde, setHyde] = React.useState(true);
+  // Saved-thread history dropdown.
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [savedThreads, setSavedThreads] = React.useState<SavedThread[]>([]);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+  // The persisted-thread id for the active conversation. Empty until the first
+  // turn; regenerated on New chat. A ref so `ask` reads it without re-binding.
+  const threadIdRef = React.useRef<string>("");
   // Always-current view of `turns` so `ask` can read prior turns without
   // becoming a fresh callback on every streamed token.
   const turnsRef = React.useRef<Turn[]>([]);
@@ -249,8 +316,17 @@ export function AskPanel() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      // History is every completed turn that existed before this question.
-      const history = turnsRef.current.map((turn) => ({
+      // Fire-and-forget analytics; never blocks or throws.
+      logEvent("ask", { query: q });
+
+      // Ensure the conversation has a persisted-thread id (first-ever turn).
+      if (!threadIdRef.current) threadIdRef.current = newThreadId();
+
+      // Snapshot the completed turns that precede this question. Used both for
+      // the server-side chat history and to build the exact thread we persist
+      // once the answer finishes (avoids any turnsRef timing race).
+      const priorTurns = turnsRef.current;
+      const history = priorTurns.map((turn) => ({
         role: turn.role,
         content: turn.content,
       }));
@@ -261,9 +337,35 @@ export function AskPanel() {
       setLoading(true);
 
       try {
+        // HyDE query expansion: ask the local model for a short hypothetical
+        // answer and embed THAT instead of the raw question — it usually lands
+        // closer to the relevant note vectors. Best-effort: the endpoint is
+        // 4s-bounded and returns "" on any failure, and we fall back to `q`.
+        let embedText = q;
+        if (hyde) {
+          try {
+            const expandRes = await fetch("/api/expand", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ question: q, model: model || undefined }),
+              signal: controller.signal,
+            });
+            if (expandRes.ok) {
+              const expand = (await expandRes.json()) as ExpandResponse;
+              if (typeof expand.text === "string" && expand.text.trim()) {
+                embedText = expand.text;
+              }
+            }
+          } catch (err) {
+            // A real abort (new submit/unmount) must stop this run entirely;
+            // any other failure just falls back to embedding the raw question.
+            if (err instanceof DOMException && err.name === "AbortError") throw err;
+          }
+        }
+
         // Embed the query in-browser; the server holds the chunk vectors and
         // does retrieval, returning sources via the `X-Sources` header.
-        const queryVector = await embedQuery(q);
+        const queryVector = await embedQuery(embedText);
 
         // Append the assistant turn to stream into; sources arrive via header.
         setTurns((prev) => [
@@ -325,9 +427,17 @@ export function AskPanel() {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
 
+        // Accumulate the answer locally in parallel with React state so the
+        // completed thread can be persisted deterministically (state updates
+        // may not have flushed to `turnsRef` at the moment the stream ends).
+        let answerContent = "";
+        let answerReasoning = "";
+
         // Append a decoded event to the last (assistant) turn: text deltas grow
         // the answer, think deltas grow the collapsible reasoning section.
         const applyEvent = (event: StreamEvent) => {
+          if (event.t === "think") answerReasoning += event.c;
+          else answerContent += event.c;
           setTurns((prev) => {
             if (prev.length === 0) return prev;
             const lastIndex = prev.length - 1;
@@ -376,6 +486,21 @@ export function AskPanel() {
         }
         // Flush any trailing line without a terminating newline.
         if (buffer.trim()) flushLine(buffer);
+
+        // The stream completed normally (an abort would have thrown). Persist
+        // the full thread from our deterministic snapshot so it can be resumed.
+        const finalTurns: Turn[] = [
+          ...priorTurns,
+          { role: "user", content: q },
+          {
+            role: "assistant",
+            content: answerContent,
+            reasoning: answerReasoning || undefined,
+            sources,
+          },
+        ];
+        saveThread(threadIdRef.current, finalTurns);
+        setSavedThreads(listThreads());
       } catch (err) {
         // An intentional abort (new submit or unmount) isn't a user-facing error.
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -396,7 +521,7 @@ export function AskPanel() {
         }
       }
     },
-    [busy, model],
+    [busy, model, hyde],
   );
 
   const runReindex = React.useCallback(async (): Promise<void> => {
@@ -472,6 +597,32 @@ export function AskPanel() {
     abortRef.current?.abort();
     setTurns([]);
     setError(null);
+    // Start a fresh persisted thread so the next question doesn't append to the
+    // conversation we just left.
+    threadIdRef.current = newThreadId();
+  };
+
+  // Toggle the history dropdown, refreshing the list from storage on open.
+  const toggleHistory = () => {
+    const next = !showHistory;
+    if (next) setSavedThreads(listThreads());
+    setShowHistory(next);
+  };
+
+  // Load a saved thread back into the conversation and resume it.
+  const openThread = (thread: SavedThread) => {
+    if (busy) return;
+    abortRef.current?.abort();
+    setTurns(thread.turns);
+    threadIdRef.current = thread.id;
+    setError(null);
+    setShowHistory(false);
+  };
+
+  // Remove a saved thread, then refresh the visible list.
+  const removeThread = (id: string) => {
+    deleteThread(id);
+    setSavedThreads(listThreads());
   };
 
   const ready = health?.serving && health.hasModel;
@@ -480,18 +631,77 @@ export function AskPanel() {
 
   return (
     <div className="space-y-6">
-      {/* Header: new chat + model picker */}
+      {/* Header: new chat + history + model picker + HyDE toggle */}
       <div className="flex items-end justify-between gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={newChat}
-          disabled={busy || turns.length === 0}
-        >
-          <RotateCcw className="h-4 w-4" />
-          New chat
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={newChat}
+            disabled={busy || turns.length === 0}
+          >
+            <RotateCcw className="h-4 w-4" />
+            New chat
+          </Button>
+
+          {/* History dropdown: resume a saved conversation. */}
+          <div className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={toggleHistory}
+              aria-expanded={showHistory}
+              aria-haspopup="menu"
+            >
+              <History className="h-4 w-4" />
+              History
+            </Button>
+
+            {showHistory && (
+              <div
+                role="menu"
+                className="bg-popover absolute left-0 z-20 mt-1 max-h-80 w-80 overflow-y-auto rounded-lg border p-1 shadow-md"
+              >
+                {savedThreads.length === 0 ? (
+                  <p className="text-muted-foreground px-3 py-4 text-center text-sm">
+                    No saved conversations yet.
+                  </p>
+                ) : (
+                  <ul className="grid gap-0.5">
+                    {savedThreads.map((thread) => (
+                      <li key={thread.id} className="group/thread flex items-center gap-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => openThread(thread)}
+                          disabled={busy}
+                          className="hover:bg-accent min-w-0 flex-1 rounded-md px-2.5 py-2 text-left transition-colors disabled:opacity-50"
+                        >
+                          <span className="block truncate text-sm">
+                            {thread.title}
+                          </span>
+                          <span className="text-muted-foreground block text-xs">
+                            {relativeTime(thread.updatedAt)}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeThread(thread.id)}
+                          aria-label={`Delete conversation “${thread.title}”`}
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-md p-2 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="flex flex-col items-end gap-1">
           <label
@@ -520,6 +730,20 @@ export function AskPanel() {
               ))
             )}
           </select>
+          <label
+            htmlFor="ask-hyde"
+            className="text-muted-foreground mt-0.5 inline-flex cursor-pointer items-center gap-1.5 text-xs select-none"
+            title="Rewrite the question into a hypothetical answer and embed that for retrieval (HyDE)."
+          >
+            <input
+              id="ask-hyde"
+              type="checkbox"
+              checked={hyde}
+              onChange={(e) => setHyde(e.target.checked)}
+              className="accent-primary h-3.5 w-3.5"
+            />
+            Expand query (HyDE)
+          </label>
         </div>
       </div>
 
@@ -640,7 +864,7 @@ export function AskPanel() {
                         return (
                           <li key={hit.slug}>
                             <Link
-                              href={`/wiki/${hit.slug}`}
+                              href={sourceHref(hit)}
                               className="group hover:bg-accent flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-colors"
                             >
                               <span
