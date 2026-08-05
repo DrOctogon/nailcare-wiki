@@ -76,6 +76,30 @@ function buildExcerpt(body: string): string {
   return text.slice(0, 217).replace(/\s+\S*$/, "") + "…";
 }
 
+/** Max chars of cleaned body shipped per doc in the client search index. */
+const SEARCH_BODY_CAP = 600;
+
+/**
+ * Cleaned, capped plain-text body for keyword search. Uses the same
+ * markdown-stripping approach as {@link buildExcerpt} (wikilink → label,
+ * md link → text, drop symbols, collapse whitespace) plus code-fence removal,
+ * then caps at {@link SEARCH_BODY_CAP} chars so the client-shipped index stays
+ * small (~600 chars × ~400 notes).
+ */
+function buildSearchBody(body: string): string {
+  const text = body
+    .replace(/```[\s\S]*?```/g, " ") // fenced code blocks
+    .replace(/`[^`]*`/g, " ") // inline code
+    .replace(/^#.*$/gm, "") // drop heading lines
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t, a) => a || t) // wikilink → label
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // md link → text
+    .replace(/[*_`>#-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= SEARCH_BODY_CAP) return text;
+  return text.slice(0, SEARCH_BODY_CAP - 1).replace(/\s+\S*$/, "") + "…";
+}
+
 interface RawRecord {
   slug: string;
   title: string;
@@ -111,6 +135,8 @@ interface VaultData {
   pages: Map<string, WikiPage>;
   metas: WikiPageMeta[];
   graph: WikiGraph;
+  /** slug → cleaned, capped note body for the client keyword index. */
+  searchBodies: Map<string, string>;
 }
 
 // Module-level singleton. React's cache() is request-scoped, so during static
@@ -248,9 +274,16 @@ async function buildVault(): Promise<VaultData> {
     .map(toMeta)
     .sort((a, b) => a.title.localeCompare(b.title));
 
+  // Derive the compact keyword-search body once per build, straight from the
+  // raw markdown (WikiPage keeps only rendered HTML + excerpt, not the source).
+  const searchBodies = new Map<string, string>();
+  for (const rec of raws) {
+    searchBodies.set(rec.slug, buildSearchBody(rec.body));
+  }
+
   const graph = buildGraph(pages);
 
-  return { pages, metas, graph };
+  return { pages, metas, graph, searchBodies };
 }
 
 function toMeta(page: WikiPage): WikiPageMeta {
@@ -446,11 +479,14 @@ export interface SearchDoc {
   type: WikiType;
   excerpt: string;
   tags: string[];
+  /** Cleaned, capped note body (~600 chars) for full-text keyword search. */
+  body: string;
 }
 
 /** Lightweight, client-shippable index for the command-palette search. */
 export const getSearchIndex = cache(async (): Promise<SearchDoc[]> => {
-  return (await getAllPageMetas())
+  const { metas, searchBodies } = await loadVault();
+  return metas
     .filter((p) => !p.isIndex)
     .map((p) => ({
       slug: p.slug,
@@ -459,6 +495,7 @@ export const getSearchIndex = cache(async (): Promise<SearchDoc[]> => {
       type: p.type,
       excerpt: p.excerpt,
       tags: p.tags,
+      body: searchBodies.get(p.slug) ?? "",
     }));
 });
 

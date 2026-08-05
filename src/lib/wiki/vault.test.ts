@@ -7,6 +7,7 @@ import {
   getGrowthSeries,
   getConnectivityHistogram,
   getGraph,
+  getSearchIndex,
 } from "./vault";
 
 // Integration test against the real sibling vault. Skip cleanly when the vault
@@ -78,6 +79,16 @@ suite("vault (real content invariants)", () => {
 
     const binSum = histogram.reduce((acc, bin) => acc + bin.count, 0);
     expect(binSum).toBe(nonIndexCount);
+  });
+
+  it("getSearchIndex: every doc carries a bounded, string body", async () => {
+    const docs = await getSearchIndex();
+    expect(docs.length).toBeGreaterThan(0);
+    for (const doc of docs) {
+      expect(typeof doc.body).toBe("string");
+      // Cleaned + capped (~600 chars, plus a trailing ellipsis on truncation).
+      expect(doc.body.length).toBeLessThanOrEqual(601);
+    }
   });
 
   it("getGraph: links reference existing nodes with no self-loops", async () => {

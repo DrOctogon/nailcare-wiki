@@ -1,4 +1,5 @@
 import { retrieveChunks, type RetrievedChunk } from "@/lib/wiki/rag-retrieval";
+import { llmRerank } from "@/lib/wiki/rag-rerank";
 import { getIndexFreshness } from "@/lib/wiki/freshness";
 
 export const runtime = "nodejs";
@@ -10,6 +11,9 @@ const HEALTH_TIMEOUT_MS = 2500;
 const MAX_HISTORY = 40;
 const CONTEXT_CHAR_LIMIT = 2000;
 const RETRIEVAL_LIMIT = 8;
+// Best-effort LLM rerank budget. If the local model can't reorder candidates in
+// time, we fall back to the hybrid+MMR order rather than delay the answer.
+const RERANK_TIMEOUT_MS = 4000;
 // The client embeds the query with MiniLM (384 dims); bound generously so any
 // reasonable sentence-embedding model is accepted but garbage is rejected.
 const MIN_VECTOR_DIM = 128;
@@ -244,9 +248,23 @@ export async function POST(request: Request): Promise<Response> {
     // Server-side retrieval: rank the on-disk chunk vectors against the
     // client-embedded query vector.
     const chunks = await retrieveChunks(question, queryVector, RETRIEVAL_LIMIT);
-    const sources = dedupeSourcesBySlug(chunks);
 
-    const messages = buildMessages(question, history, chunks);
+    // Optional LLM reranking stage. The local model reorders the candidates by
+    // relevance to the question; it's best-effort (strict timeout + graceful
+    // fallback to the hybrid+MMR order) and can be disabled via env opt-out.
+    const ranked =
+      process.env.DISABLE_RERANK === "1"
+        ? chunks
+        : await llmRerank(question, chunks, {
+            host: OLLAMA_HOST,
+            model: chosen,
+            signal: request.signal,
+            timeoutMs: RERANK_TIMEOUT_MS,
+          });
+
+    const sources = dedupeSourcesBySlug(ranked);
+
+    const messages = buildMessages(question, history, ranked);
 
     const upstream = await fetch(`${OLLAMA_HOST}/api/chat`, {
       method: "POST",

@@ -10,6 +10,11 @@ vi.mock("@/lib/wiki/rag-retrieval", () => ({
     { slug: "s", title: "T", dir: "concepts", text: "ctx", score: 0.9 },
   ]),
 }));
+// The LLM reranker is mocked to identity by default so all existing order
+// assertions hold; individual tests override it to assert reranked order.
+vi.mock("@/lib/wiki/rag-rerank", () => ({
+  llmRerank: vi.fn(async (_question: string, candidates: unknown[]) => candidates),
+}));
 vi.mock("@/lib/wiki/freshness", () => ({
   getIndexFreshness: vi.fn(async () => ({
     builtAt: "2026-01-01T00:00:00Z",
@@ -22,6 +27,7 @@ vi.mock("@/lib/wiki/freshness", () => ({
 
 import { GET, POST } from "./route";
 import { retrieveChunks } from "@/lib/wiki/rag-retrieval";
+import { llmRerank } from "@/lib/wiki/rag-rerank";
 
 // The default model the route probes for when none is explicitly requested.
 const DEFAULT_MODEL = "llama3.2:3b";
@@ -388,6 +394,41 @@ describe("POST /api/ask — streaming happy path", () => {
     const res = await POST(postRequest(validBody()));
     await res.text();
     expect(JSON.parse(String(chatInit!.body)).model).toBe(DEFAULT_MODEL);
+  });
+
+  it("builds context and X-Sources from the reranked order, not the retrieval order", async () => {
+    // Two distinct chunks so a reorder is observable.
+    vi.mocked(retrieveChunks).mockResolvedValueOnce([
+      { slug: "a", title: "Alpha", dir: "concepts", text: "alpha body", score: 0.9 },
+      { slug: "b", title: "Beta", dir: "concepts", text: "beta body", score: 0.5 },
+    ]);
+    // The reranker flips the order (most-relevant last from retrieval → first).
+    vi.mocked(llmRerank).mockImplementationOnce(
+      async <T,>(_question: string, candidates: T[]): Promise<T[]> =>
+        [...candidates].reverse(),
+    );
+
+    let chatInit: RequestInit | undefined;
+    routeFetch({
+      tags: () => tagsResponse([DEFAULT_MODEL]),
+      chat: (init) => {
+        chatInit = init;
+        return chatStreamResponse(['{"message":{"content":"ok"},"done":true}\n']);
+      },
+    });
+
+    const res = await POST(postRequest(validBody()));
+    expect(res.status).toBe(200);
+    await res.text();
+
+    // X-Sources reflects the reranked (reversed) order: Beta before Alpha.
+    const sources = JSON.parse(decodeURIComponent(res.headers.get("x-sources")!));
+    expect(sources.map((s: { slug: string }) => s.slug)).toEqual(["b", "a"]);
+
+    // The chat context is built from the reranked order too: Beta's block
+    // appears before Alpha's in the user message.
+    const userMessage = JSON.parse(String(chatInit!.body)).messages.at(-1).content;
+    expect(userMessage.indexOf("Beta")).toBeLessThan(userMessage.indexOf("Alpha"));
   });
 
   it("502 ollama_error when the chat call returns non-ok", async () => {
