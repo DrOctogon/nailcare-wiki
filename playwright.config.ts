@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -10,12 +10,11 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * To keep E2E deterministic (and to run without the private Obsidian vault),
  * we always point the dev server at the tiny synthetic fixture vault checked
- * into the repo at `test/fixtures/vault`, via WIKI_VAULT_PATH. Resolved from
- * this config file's own URL so it's an absolute path regardless of cwd.
+ * into the repo at `test/fixtures/vault`, via WIKI_VAULT_PATH. Resolved against
+ * cwd (the repo root, where Playwright is invoked) — NOT import.meta, which CI
+ * loads as CommonJS and rejects.
  */
-const FIXTURE_VAULT_PATH = fileURLToPath(
-  new URL("./test/fixtures/vault", import.meta.url),
-);
+const FIXTURE_VAULT_PATH = path.resolve(process.cwd(), "test/fixtures/vault");
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
