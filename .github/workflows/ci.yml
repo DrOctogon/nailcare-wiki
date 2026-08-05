@@ -37,7 +37,20 @@ jobs:
       - name: Test
         run: pnpm test
 
-# Note: `pnpm build` is intentionally omitted — static generation reads the
-# private Obsidian vault (a sibling checkout that isn't available in CI). Lint,
-# typecheck, and the Vitest suite all run without it; the vault-dependent
-# `vault.test.ts` self-skips when the vault is absent.
+      # Build and E2E run against a tiny synthetic fixture vault checked into the
+      # repo (test/fixtures/vault), pointed at via WIKI_VAULT_PATH. This lets CI
+      # exercise static generation and Playwright without the private Obsidian
+      # vault, which isn't available on the runner.
+      - name: Build
+        run: pnpm exec next build
+        env:
+          WIKI_VAULT_PATH: ${{ github.workspace }}/test/fixtures/vault
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E
+        run: pnpm exec playwright test
+        env:
+          WIKI_VAULT_PATH: ${{ github.workspace }}/test/fixtures/vault
+          CI: true

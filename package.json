@@ -36,6 +36,7 @@
     "graphology-layout-forceatlas2": "^0.10.1",
     "graphology-metrics": "^2.4.0",
     "gray-matter": "^4.0.3",
+    "jszip": "^3.10.1",
     "katex": "^0.17.0",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",

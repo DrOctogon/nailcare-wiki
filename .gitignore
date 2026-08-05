@@ -22,12 +22,16 @@
 /.next/
 /out/
 
+
 # production
 /build
 
 # generated semantic index (reproduce with `pnpm embed`)
 /public/vault-vectors.json
 /.index/
+
+# local, privacy-preserving usage analytics (never committed)
+/.analytics/
 
 # misc
 .DS_Store

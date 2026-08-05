@@ -22,6 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Toc } from "@/components/wiki/toc";
 import { BacklinksPanel } from "@/components/wiki/backlinks-panel";
+import { ExportMenu } from "@/components/wiki/export-menu";
 
 interface WikiPageProps {
   params: Promise<{ slug: string }>;
@@ -84,15 +85,18 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
         {/* Main article */}
         <div className="min-w-0">
           <header className="mb-8">
-            <div
-              className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium"
-              style={{ color: meta.accent }}
-            >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: meta.accent }}
-              />
-              {meta.singular}
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div
+                className="inline-flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: meta.accent }}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: meta.accent }}
+                />
+                {meta.singular}
+              </div>
+              <ExportMenu slug={page.slug} title={page.title} />
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
               {page.title}

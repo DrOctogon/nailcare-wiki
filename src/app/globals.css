@@ -296,3 +296,82 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Print / "Save as PDF" — isolate the article, strip the app chrome.
+
+   The export menu, collection download button, and any other interactive
+   control get the `.no-print` class; the structural chrome (sidebar, sticky
+   header, breadcrumb, right rail, backlinks) is hidden by slot/structure so
+   only the note's title block and prose reach the page — black on white with
+   sensible margins.
+   -------------------------------------------------------------------------- */
+
+/* `.no-print` is a marker with no screen-side styles — interactive chrome
+   tagged with it is hidden inside the @media print block below. */
+
+@page {
+  margin: 1.6cm;
+}
+
+@media print {
+  /* Strip navigational + interactive chrome. */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-inset"] > header,
+  [data-slot="breadcrumb"],
+  [data-slot="sidebar-inset"] main aside,
+  [data-slot="sidebar-inset"] > main > div > section,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Let the article flow full width once the right rail is gone. */
+  [data-slot="sidebar-inset"] > main > div {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Black-on-white, no page-level tints. */
+  html,
+  body,
+  [data-slot="sidebar-inset"] {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .wiki-prose,
+  .wiki-prose h1,
+  .wiki-prose h2,
+  .wiki-prose h3,
+  .wiki-prose h4 {
+    color: #000 !important;
+  }
+
+  /* Flatten themed code/quote backgrounds so ink stays legible on paper. */
+  .wiki-prose pre,
+  .wiki-prose pre.shiki,
+  .wiki-prose code {
+    background: #f5f5f5 !important;
+    color: #000 !important;
+    border-color: #ddd !important;
+  }
+  .wiki-prose pre.shiki span {
+    color: #000 !important;
+  }
+
+  /* Avoid awkward breaks mid-heading or mid-figure. */
+  .wiki-prose h1,
+  .wiki-prose h2,
+  .wiki-prose h3,
+  .wiki-prose h4 {
+    break-after: avoid;
+  }
+  .wiki-prose pre,
+  .wiki-prose img,
+  .wiki-prose table {
+    break-inside: avoid;
+  }
+}

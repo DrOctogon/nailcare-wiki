@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -9,6 +9,8 @@ import { AppSidebar, type CollectionNav } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { NavBeacon } from "@/lib/analytics";
+import { PwaRegister } from "@/components/pwa-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,6 +29,22 @@ export const metadata: Metadata = {
   },
   description:
     "A beautifully crafted browser for a compounding Obsidian knowledge vault.",
+  applicationName: "Vault Explorer",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Vault",
+  },
+};
+
+// Next.js 16 expects theme-color in the viewport export (not in `metadata`).
+// Values track the `--background` token from globals.css for each color scheme.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default async function RootLayout({
@@ -61,6 +79,8 @@ export default async function RootLayout({
             </SidebarInset>
           </SidebarProvider>
           <Toaster />
+          <NavBeacon />
+          <PwaRegister />
         </ThemeProvider>
       </body>
     </html>
