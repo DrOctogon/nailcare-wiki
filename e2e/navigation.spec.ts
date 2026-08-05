@@ -51,7 +51,9 @@ test.describe("navigation", () => {
     await expect(firstWikiLink).toBeVisible();
     await firstWikiLink.click();
 
-    await expect(page).toHaveURL(/\/wiki\/.+/);
+    // The dynamic /wiki/[slug] route compiles on-demand under `next dev`, so
+    // allow generous time for the navigation to land rather than a tight poll.
+    await page.waitForURL(/\/wiki\/.+/, { timeout: 20_000 });
     // The article renders an <h1> title and the prose body.
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.locator("article.wiki-prose")).toBeVisible();

@@ -15,7 +15,8 @@ test.describe("search palette", () => {
 
     // Keyword mode is the default (deterministic — Hybrid needs an in-browser
     // model download, so we never assert on it).
-    await page.getByPlaceholder("Search pages, tags…").fill("nail");
+    // Match by prefix so palette copy tweaks (e.g. "…tags, text…") don't break it.
+    await page.getByPlaceholder(/^Search pages, tags/).fill("nail");
 
     // Results render as command options; "nail" is pervasive in this vault.
     const options = dialog.getByRole("option");
