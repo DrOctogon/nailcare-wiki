@@ -623,3 +623,32 @@ export const getRecentlyUpdated = cache(async (limit = 8): Promise<WikiPageMeta[
     .sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""))
     .slice(0, limit);
 });
+
+export interface ActivityDay {
+  /** ISO day "YYYY-MM-DD". */
+  date: string;
+  /** Number of notes whose activity date falls on this day. */
+  count: number;
+}
+
+/**
+ * Per-day note activity across the vault — one entry per day that saw activity,
+ * sorted ascending by date. Activity date = `updated ?? created` (the day a note
+ * was last touched), matching getTimeline. Non-index, dated pages only.
+ */
+export const getActivityCalendar = cache(async (): Promise<ActivityDay[]> => {
+  const metas = await getAllPageMetas();
+  const perDay = new Map<string, number>();
+
+  for (const meta of metas) {
+    if (meta.isIndex) continue;
+    const date = meta.updated ?? meta.created;
+    const match = date ? /^(\d{4}-\d{2}-\d{2})/.exec(date) : null;
+    if (!match) continue;
+    perDay.set(match[1], (perDay.get(match[1]) ?? 0) + 1);
+  }
+
+  return [...perDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, count]) => ({ date, count }));
+});

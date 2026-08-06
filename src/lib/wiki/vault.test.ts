@@ -8,6 +8,7 @@ import {
   getConnectivityHistogram,
   getGraph,
   getSearchIndex,
+  getActivityCalendar,
 } from "./vault";
 
 // Integration test against the real sibling vault. Skip cleanly when the vault
@@ -103,5 +104,32 @@ suite("vault (real content invariants)", () => {
       expect(nodeIds.has(link.target)).toBe(true);
       expect(link.source).not.toBe(link.target);
     }
+  });
+
+  it("getActivityCalendar: sparse ascending days summing to dated non-index pages", async () => {
+    const calendar = await getActivityCalendar();
+    const metas = await getAllPageMetas();
+
+    // Recompute the expected total the same way the function does: non-index
+    // pages with a parseable `updated ?? created` leading YYYY-MM-DD.
+    const expectedSum = metas.filter((m) => {
+      if (m.isIndex) return false;
+      const date = m.updated ?? m.created;
+      return date ? /^(\d{4}-\d{2}-\d{2})/.test(date) : false;
+    }).length;
+
+    let prev = "";
+    let sum = 0;
+    for (const day of calendar) {
+      expect(day.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(Number.isInteger(day.count)).toBe(true);
+      expect(day.count).toBeGreaterThan(0);
+      // Strictly ascending and therefore unique.
+      expect(day.date > prev).toBe(true);
+      prev = day.date;
+      sum += day.count;
+    }
+
+    expect(sum).toBe(expectedSum);
   });
 });

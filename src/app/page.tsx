@@ -17,11 +17,13 @@ import {
   getGrowthSeries,
   getConnectivityHistogram,
   getCollectionSizes,
+  getActivityCalendar,
 } from "@/lib/wiki/vault";
 import { dirMeta, DIR_ORDER } from "@/lib/wiki/labels";
 import { StatCard } from "@/components/wiki/stat-card";
 import { PageCard } from "@/components/wiki/page-card";
 import { GrowthAreaChart } from "@/components/wiki/charts/growth-area-chart";
+import { ActivityHeatmap } from "@/components/wiki/charts/activity-heatmap";
 import { CollectionsBarChart } from "@/components/wiki/charts/collections-bar-chart";
 import { ConnectivityHistogram } from "@/components/wiki/charts/connectivity-histogram";
 import { Badge } from "@/components/ui/badge";
@@ -35,16 +37,25 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 export default async function DashboardPage() {
-  const [stats, hot, recent, tags, growth, connectivity, collectionSizes] =
-    await Promise.all([
-      getStats(),
-      getMostLinked(6),
-      getRecentlyUpdated(4),
-      getAllTags(),
-      getGrowthSeries(),
-      getConnectivityHistogram(),
-      getCollectionSizes(),
-    ]);
+  const [
+    stats,
+    hot,
+    recent,
+    tags,
+    growth,
+    connectivity,
+    collectionSizes,
+    activity,
+  ] = await Promise.all([
+    getStats(),
+    getMostLinked(6),
+    getRecentlyUpdated(4),
+    getAllTags(),
+    getGrowthSeries(),
+    getConnectivityHistogram(),
+    getCollectionSizes(),
+    getActivityCalendar(),
+  ]);
 
   const byDir = new Map(stats.byDir.map((d) => [d.dir, d.count]));
   const collections = DIR_ORDER.filter((d) => byDir.has(d));
@@ -127,6 +138,21 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <GrowthAreaChart data={growth} />
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Daily activity
+              </CardTitle>
+              <CardDescription>
+                Notes touched each day — the day each note was last updated or
+                created.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ActivityHeatmap data={activity} />
             </CardContent>
           </Card>
 
