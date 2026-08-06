@@ -38,11 +38,12 @@ export default async function TimelinePage() {
       </Breadcrumb>
 
       <header className="mb-10">
-        <h1 className="flex items-center gap-2.5 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick">Vault chronology</p>
+        <h1 className="font-display mt-1 flex items-center gap-2.5 text-3xl text-balance md:text-4xl">
           <CalendarClock className="text-chart-2 h-8 w-8" />
           Timeline
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg">
+        <p className="text-muted-foreground font-reading mt-3 text-lg leading-relaxed">
           {total.toLocaleString()} pages across {buckets.length} months — how the
           vault compounded over time.
         </p>
@@ -58,12 +59,12 @@ export default async function TimelinePage() {
               <div className="md:flex md:gap-8">
                 {/* Month label + volume bar */}
                 <div className="mb-4 flex items-center gap-3 md:mb-0 md:w-36 md:flex-col md:items-end md:gap-1.5 md:pt-0.5">
-                  <span className="bg-chart-2 relative z-10 h-3.5 w-3.5 shrink-0 rounded-full ring-4 ring-[var(--background)] md:order-2 md:self-start md:-ml-[calc(9rem-7px+7px)]" />
+                  <span className="bg-primary relative z-10 h-3.5 w-3.5 shrink-0 rounded-full ring-4 ring-[var(--background)] md:order-2 md:self-start md:-ml-[calc(9rem-7px+7px)]" />
                   <div className="md:text-right">
-                    <div className="font-semibold tracking-tight">
+                    <div className="catalog-meta text-foreground">
                       {bucket.label}
                     </div>
-                    <div className="text-muted-foreground text-xs tabular-nums">
+                    <div className="text-muted-foreground mt-0.5 text-xs tabular-nums">
                       {bucket.pages.length} page
                       {bucket.pages.length === 1 ? "" : "s"}
                     </div>

@@ -135,7 +135,7 @@ export function InsightsView() {
       <section aria-label="Activity by day">
         <Card>
           <CardHeader>
-            <CardTitle>Activity by day</CardTitle>
+            <CardTitle className="font-display text-lg">Activity by day</CardTitle>
             <CardDescription>
               Events logged locally, per calendar day.
             </CardDescription>
@@ -150,7 +150,7 @@ export function InsightsView() {
         {/* Top viewed notes */}
         <Card>
           <CardHeader>
-            <CardTitle>Top viewed notes</CardTitle>
+            <CardTitle className="font-display text-lg">Top viewed notes</CardTitle>
             <CardDescription>Most-visited pages.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -194,7 +194,7 @@ export function InsightsView() {
         {/* Top searches */}
         <Card>
           <CardHeader>
-            <CardTitle>Top searches</CardTitle>
+            <CardTitle className="font-display text-lg">Top searches</CardTitle>
             <CardDescription>Most-used search terms.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -226,7 +226,7 @@ export function InsightsView() {
       <section aria-label="Recent questions">
         <Card>
           <CardHeader>
-            <CardTitle>Recent questions</CardTitle>
+            <CardTitle className="font-display text-lg">Recent questions</CardTitle>
             <CardDescription>
               Latest questions asked of the vault.
             </CardDescription>
@@ -271,10 +271,10 @@ function StatTile({ label, value, icon: Icon }: StatTileProps) {
     <Card size="sm">
       <CardContent className="flex flex-col gap-1">
         <Icon className="text-muted-foreground h-4 w-4" />
-        <span className="text-foreground text-2xl font-semibold tabular-nums">
+        <span className="text-foreground font-display text-2xl tabular-nums">
           {value.toLocaleString()}
         </span>
-        <span className="text-muted-foreground text-xs">{label}</span>
+        <span className="catalog-meta truncate">{label}</span>
       </CardContent>
     </Card>
   );

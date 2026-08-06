@@ -34,7 +34,8 @@ export default function AskPage() {
       </Breadcrumb>
 
       <header className="mb-8">
-        <h1 className="flex items-center gap-2.5 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick">Local retrieval-augmented Q&amp;A</p>
+        <h1 className="font-display mt-1 flex items-center gap-2.5 text-3xl text-balance md:text-4xl">
           <MessageCircleQuestion className="text-chart-1 h-8 w-8" />
           Ask the Vault
         </h1>

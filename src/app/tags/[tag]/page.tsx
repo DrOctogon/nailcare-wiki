@@ -60,14 +60,13 @@ export default async function TagPage({ params }: TagPageProps) {
       </Breadcrumb>
 
       <header className="mb-10">
-        <div
-          className="mb-3 flex items-center gap-2 text-sm font-medium"
-          style={{ color: "var(--chart-4)" }}
-        >
-          <Hash className="h-4 w-4" />
-          Tag
+        <div className="lacquer-tick mb-3">
+          <span className="catalog-meta inline-flex items-center gap-2">
+            <Hash className="h-4 w-4" />
+            Tag
+          </span>
         </div>
-        <h1 className="flex items-baseline gap-1 text-3xl font-semibold tracking-tight md:text-4xl">
+        <h1 className="font-display flex items-baseline gap-1 text-3xl text-balance md:text-4xl">
           <span className="text-muted-foreground">#</span>
           {decoded}
         </h1>

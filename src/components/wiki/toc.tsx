@@ -62,9 +62,7 @@ export function Toc({ headings }: TocProps) {
 
   return (
     <nav aria-label="Table of contents">
-      <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-        On this page
-      </div>
+      <div className="catalog-meta mb-3">On this page</div>
       <ul className="space-y-1 text-sm">
         {items.map((heading) => {
           const isActive = heading.id === activeId;

@@ -52,15 +52,12 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
       {/* Hero */}
-      <section className="mb-10">
-        <Badge variant="secondary" className="mb-4 gap-1.5">
-          <span className="bg-chart-2 h-1.5 w-1.5 rounded-full" />
-          Compounding knowledge vault
-        </Badge>
-        <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-          Explore a living web of research
+      <section className="mb-12">
+        <p className="catalog-meta lacquer-tick">Compounding knowledge vault</p>
+        <h1 className="font-display mt-1 max-w-3xl text-4xl text-balance md:text-6xl">
+          A living web of research
         </h1>
-        <p className="text-muted-foreground mt-4 max-w-2xl text-lg">
+        <p className="text-muted-foreground font-reading mt-5 max-w-2xl text-lg leading-relaxed">
           {stats.total} interlinked notes across concepts, entities, sources and
           open questions — with {stats.totalLinks.toLocaleString()} connections.
           Search anything with{" "}
@@ -115,13 +112,15 @@ export default async function DashboardPage() {
 
       {/* Vault analytics */}
       <section className="mb-12">
-        <h2 className="mb-4 text-lg font-semibold tracking-tight">
+        <h2 className="font-display mb-4 text-xl md:text-2xl">
           Vault analytics
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Knowledge growth</CardTitle>
+              <CardTitle className="font-display text-lg">
+                Knowledge growth
+              </CardTitle>
               <CardDescription>
                 Cumulative pages by the day each note was created.
               </CardDescription>
@@ -133,7 +132,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Pages by collection</CardTitle>
+              <CardTitle className="font-display text-lg">
+                Pages by collection
+              </CardTitle>
               <CardDescription>How the vault breaks down by type.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -143,7 +144,9 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Connectivity</CardTitle>
+              <CardTitle className="font-display text-lg">
+                Connectivity
+              </CardTitle>
               <CardDescription>
                 Pages grouped by how many backlinks point at them.
               </CardDescription>
@@ -157,7 +160,7 @@ export default async function DashboardPage() {
 
       {/* Collections */}
       <section className="mb-12">
-        <h2 className="mb-4 text-lg font-semibold tracking-tight">Collections</h2>
+        <h2 className="font-display mb-4 text-xl md:text-2xl">Collections</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {collections.map((dir) => {
             const meta = dirMeta(dir);
@@ -196,7 +199,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
         {/* Most linked */}
         <section className="lg:col-span-2">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <h2 className="font-display mb-4 flex items-center gap-2 text-xl md:text-2xl">
             <Flame className="text-chart-1 h-5 w-5" /> Most connected
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -209,7 +212,7 @@ export default async function DashboardPage() {
         {/* Recently updated + tags */}
         <aside className="space-y-8">
           <section>
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <h2 className="font-display mb-4 flex items-center gap-2 text-xl">
               <Clock className="text-chart-2 h-5 w-5" /> Recently updated
             </h2>
             <Card>
@@ -223,7 +226,7 @@ export default async function DashboardPage() {
                     <div className="line-clamp-1 text-sm font-medium">
                       {page.title}
                     </div>
-                    <div className="text-muted-foreground mt-0.5 text-xs">
+                    <div className="catalog-meta mt-1">
                       {page.updated} · {dirMeta(page.dir).singular}
                     </div>
                   </Link>
@@ -233,7 +236,7 @@ export default async function DashboardPage() {
           </section>
 
           <section>
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <h2 className="font-display mb-4 flex items-center gap-2 text-xl">
               <TagsIcon className="text-chart-4 h-5 w-5" /> Popular tags
             </h2>
             <Separator className="mb-4" />

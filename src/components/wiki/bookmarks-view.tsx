@@ -87,7 +87,7 @@ export function BookmarksView() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">
+        <p className="catalog-meta">
           <span className="tabular-nums">{bookmarks.length}</span> saved note
           {bookmarks.length === 1 ? "" : "s"}
         </p>
@@ -120,7 +120,7 @@ export function BookmarksView() {
                   >
                     {bookmark.title}
                   </Link>
-                  <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-xs">
+                  <div className="catalog-meta mt-0.5 flex flex-wrap items-center gap-x-2">
                     <span>{typeLabel(bookmark.type)}</span>
                     <span aria-hidden="true">·</span>
                     <span>{meta.label}</span>

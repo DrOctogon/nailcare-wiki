@@ -70,7 +70,7 @@ export function DigestView({ changedTitles }: DigestViewProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="font-display flex items-center gap-2 text-lg">
           <Sparkles className="text-chart-4 h-4 w-4" />
           Theme summary
         </CardTitle>

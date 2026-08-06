@@ -223,7 +223,7 @@ function ReasoningDisclosure({ text, live }: ReasoningDisclosureProps) {
       }
       className="border-border/60 text-muted-foreground rounded-lg border px-3 py-2 text-xs"
     >
-      <summary className="flex cursor-pointer items-center gap-1.5 font-medium tracking-wide uppercase select-none">
+      <summary className="catalog-meta flex cursor-pointer items-center gap-1.5 select-none">
         <Brain className="h-3.5 w-3.5" />
         Reasoning
       </summary>
@@ -704,10 +704,7 @@ export function AskPanel() {
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <label
-            htmlFor="ask-model"
-            className="text-muted-foreground text-xs font-medium"
-          >
+          <label htmlFor="ask-model" className="catalog-meta">
             Model
           </label>
           <label htmlFor="ask-model" className="sr-only">
@@ -853,7 +850,7 @@ export function AskPanel() {
 
                 {turn.sources && turn.sources.length > 0 && (
                   <div>
-                    <h2 className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+                    <h2 className="catalog-meta mb-2 flex items-center gap-1.5">
                       <FileText className="h-3.5 w-3.5" />
                       Retrieved from {turn.sources.length} note
                       {turn.sources.length === 1 ? "" : "s"}

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Hanken_Grotesk, Newsreader, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { getStats } from "@/lib/wiki/vault";
@@ -13,14 +13,32 @@ import { NavBeacon } from "@/lib/analytics";
 import { PwaRegister } from "@/components/pwa-register";
 import { WikilinkHover } from "@/components/wiki/wikilink-hover";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// "Lacquer & Ledger" type system: an editorial serif for display, a distinctive
+// grotesque for UI, a reading serif for note prose, and a mono for catalog-card
+// metadata. See globals.css @theme for how these map to Tailwind font utilities.
+const fontDisplay = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const fontSans = Hanken_Grotesk({
+  variable: "--font-hanken",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const fontSerif = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -63,7 +81,7 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${fontDisplay.variable} ${fontSans.variable} ${fontSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <ThemeProvider

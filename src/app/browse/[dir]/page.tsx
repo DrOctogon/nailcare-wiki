@@ -66,8 +66,12 @@ export default async function BrowsePage({ params }: BrowsePageProps) {
       </Breadcrumb>
 
       <header className="mb-8">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick mb-3">
+          Collection · {pages.length}{" "}
+          {pages.length === 1 ? meta.singular.toLowerCase() : "notes"}
+        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-display flex items-center gap-3 text-3xl text-balance md:text-4xl">
             <span
               className="h-3 w-3 rounded-full"
               style={{ backgroundColor: meta.accent }}
@@ -88,11 +92,11 @@ export default async function BrowsePage({ params }: BrowsePageProps) {
           </a>
         </div>
         {meta.description && (
-          <p className="text-muted-foreground mt-3 max-w-2xl text-lg">
+          <p className="text-muted-foreground font-reading mt-3 max-w-2xl text-lg">
             {meta.description}
           </p>
         )}
-        <p className="text-muted-foreground mt-4 inline-flex items-center gap-1.5 text-sm">
+        <p className="catalog-meta mt-4 inline-flex items-center gap-1.5">
           <FileText className="h-4 w-4" />
           <span className="tabular-nums">{pages.length}</span>{" "}
           {pages.length === 1 ? meta.singular.toLowerCase() : "pages"}

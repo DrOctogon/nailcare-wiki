@@ -33,7 +33,8 @@ export default function BookmarksPage() {
       </Breadcrumb>
 
       <header className="mb-10">
-        <h1 className="flex items-center gap-2.5 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick">Saved for later</p>
+        <h1 className="font-display mt-1 flex items-center gap-2.5 text-3xl text-balance md:text-4xl">
           <BookmarkCheck className="text-chart-4 h-8 w-8" />
           Reading Queue
         </h1>

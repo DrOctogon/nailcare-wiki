@@ -10,12 +10,10 @@ interface BacklinksPanelProps {
 export function BacklinksPanel({ pages }: BacklinksPanelProps) {
   return (
     <section className="mt-12">
-      <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
-        <Link2 className="text-chart-2 h-5 w-5" />
+      <h2 className="catalog-meta mb-4 flex items-center gap-2">
+        <Link2 className="h-4 w-4" />
         Linked from
-        <span className="text-muted-foreground tabular-nums">
-          ({pages.length})
-        </span>
+        <span className="tabular-nums">({pages.length})</span>
       </h2>
       {pages.length === 0 ? (
         <p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-sm">

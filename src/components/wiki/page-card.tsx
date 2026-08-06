@@ -16,12 +16,12 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
 
   return (
     <Link href={`/wiki/${page.slug}`} className="group block h-full">
-      <Card className="hover:border-primary/40 h-full gap-3 transition-colors hover:shadow-sm">
+      <Card className="hover:border-primary/40 h-full gap-3 transition-colors">
         <CardHeader className="gap-1.5">
-          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+          <div className="catalog-meta flex items-center gap-2">
             {showDir && (
               <span
-                className="inline-flex items-center gap-1.5 font-medium"
+                className="inline-flex items-center gap-1.5"
                 style={{ color: meta.accent }}
               >
                 <span
@@ -37,7 +37,7 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
               </Badge>
             )}
           </div>
-          <h3 className="group-hover:text-primary flex items-start gap-1 font-semibold leading-snug tracking-tight transition-colors">
+          <h3 className="group-hover:text-primary font-reading flex items-start gap-1 text-base font-medium leading-snug transition-colors">
             <span className="line-clamp-2">{page.title}</span>
             <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
           </h3>
@@ -47,7 +47,7 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
             {page.excerpt || "No summary available."}
           </p>
         </CardContent>
-        <CardFooter className="text-muted-foreground gap-3 text-xs">
+        <CardFooter className="catalog-meta gap-3">
           {page.backlinkCount > 0 && (
             <span className="inline-flex items-center gap-1">
               <Link2 className="h-3.5 w-3.5" />

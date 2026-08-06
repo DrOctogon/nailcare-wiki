@@ -63,17 +63,16 @@ export default async function TagsPage() {
       </Breadcrumb>
 
       <header className="mb-10">
-        <div
-          className="mb-3 flex items-center gap-2 text-sm font-medium"
-          style={{ color: "var(--chart-4)" }}
-        >
-          <TagsIcon className="h-4 w-4" />
-          Tags
+        <div className="lacquer-tick mb-3">
+          <span className="catalog-meta inline-flex items-center gap-2">
+            <TagsIcon className="h-4 w-4" />
+            Tags
+          </span>
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+        <h1 className="font-display text-3xl text-balance md:text-4xl">
           Every tag in the vault
         </h1>
-        <p className="text-muted-foreground mt-3 max-w-2xl text-lg">
+        <p className="text-muted-foreground font-reading mt-3 max-w-2xl text-lg">
           {tags.length.toLocaleString()} tag{tags.length === 1 ? "" : "s"}{" "}
           connect notes across collections. Larger tags appear on more pages.
         </p>
@@ -107,8 +106,8 @@ export default async function TagsPage() {
 
           {/* Ranked list */}
           <section>
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
-              <Hash className="text-chart-4 h-5 w-5" /> Most used
+            <h2 className="catalog-meta mb-4 flex items-center gap-2">
+              <Hash className="h-4 w-4" /> Most used
             </h2>
             <Separator className="mb-4" />
             <Card>

@@ -65,7 +65,7 @@ export function GrowthAreaChart({ data }: GrowthAreaChartProps) {
 
   if (rows.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-[240px] items-center justify-center text-sm">
+      <div className="catalog-meta flex h-[240px] items-center justify-center">
         No dated pages yet.
       </div>
     );

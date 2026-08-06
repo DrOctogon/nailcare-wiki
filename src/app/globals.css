@@ -6,77 +6,82 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.65rem;
+  --radius: 0.5rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* "Lacquer & Ledger" — light: crisp cool archival paper + deep ink + oxblood
+     lacquer accent. Deliberately cool (not the AI-cream cliché). */
+  --background: oklch(0.981 0.003 255);
+  --foreground: oklch(0.245 0.02 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.245 0.02 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.245 0.02 265);
+  --primary: oklch(0.47 0.155 20);
+  --primary-foreground: oklch(0.985 0.006 60);
+  --secondary: oklch(0.955 0.006 260);
+  --secondary-foreground: oklch(0.28 0.02 265);
+  --muted: oklch(0.955 0.006 260);
+  --muted-foreground: oklch(0.485 0.02 265);
+  --accent: oklch(0.95 0.012 30);
+  --accent-foreground: oklch(0.35 0.08 22);
+  --destructive: oklch(0.6 0.2 32);
+  --border: oklch(0.9 0.006 265);
+  --input: oklch(0.9 0.006 265);
+  --ring: oklch(0.47 0.155 20);
 
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Harmonized, muted editorial chart hues (lacquer, teal-slate, brass,
+     ink-blue, dusty-rose) — not the default bright rotating set. */
+  --chart-1: oklch(0.47 0.155 20);
+  --chart-2: oklch(0.55 0.07 215);
+  --chart-3: oklch(0.7 0.11 75);
+  --chart-4: oklch(0.45 0.09 262);
+  --chart-5: oklch(0.62 0.1 12);
 
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.965 0.004 260);
+  --sidebar-foreground: oklch(0.245 0.02 265);
+  --sidebar-primary: oklch(0.47 0.155 20);
+  --sidebar-primary-foreground: oklch(0.985 0.006 60);
+  --sidebar-accent: oklch(0.935 0.008 260);
+  --sidebar-accent-foreground: oklch(0.28 0.02 265);
+  --sidebar-border: oklch(0.9 0.006 265);
+  --sidebar-ring: oklch(0.47 0.155 20);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* Dark: deep ink-navy archive + warm paper foreground + brightened lacquer. */
+  --background: oklch(0.185 0.012 265);
+  --foreground: oklch(0.925 0.008 75);
+  --card: oklch(0.225 0.014 265);
+  --card-foreground: oklch(0.925 0.008 75);
+  --popover: oklch(0.225 0.014 265);
+  --popover-foreground: oklch(0.925 0.008 75);
+  --primary: oklch(0.62 0.155 24);
+  --primary-foreground: oklch(0.97 0.006 60);
+  --secondary: oklch(0.275 0.014 265);
+  --secondary-foreground: oklch(0.925 0.008 75);
+  --muted: oklch(0.275 0.014 265);
+  --muted-foreground: oklch(0.7 0.012 75);
+  --accent: oklch(0.32 0.03 24);
+  --accent-foreground: oklch(0.92 0.02 60);
+  --destructive: oklch(0.68 0.19 30);
+  --border: oklch(0.92 0.02 75 / 12%);
+  --input: oklch(0.92 0.02 75 / 15%);
+  --ring: oklch(0.62 0.155 24);
 
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.62 0.155 24);
+  --chart-2: oklch(0.66 0.09 210);
+  --chart-3: oklch(0.78 0.12 78);
+  --chart-4: oklch(0.6 0.11 262);
+  --chart-5: oklch(0.7 0.11 10);
 
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.205 0.013 265);
+  --sidebar-foreground: oklch(0.925 0.008 75);
+  --sidebar-primary: oklch(0.62 0.155 24);
+  --sidebar-primary-foreground: oklch(0.97 0.006 60);
+  --sidebar-accent: oklch(0.29 0.015 265);
+  --sidebar-accent-foreground: oklch(0.925 0.008 75);
+  --sidebar-border: oklch(0.92 0.02 75 / 12%);
+  --sidebar-ring: oklch(0.62 0.155 24);
 }
 
 @theme inline {
@@ -117,7 +122,9 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-hanken);
+  --font-serif: var(--font-newsreader);
+  --font-display: var(--font-fraunces);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -138,8 +145,9 @@
    Wiki prose — styling for server-rendered markdown (.wiki-prose wrapper)
    -------------------------------------------------------------------------- */
 .wiki-prose {
-  font-size: 0.975rem;
-  line-height: 1.75;
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.075rem;
+  line-height: 1.72;
   color: var(--foreground);
 }
 .wiki-prose > * + * {
@@ -149,10 +157,11 @@
 .wiki-prose h2,
 .wiki-prose h3,
 .wiki-prose h4 {
-  font-weight: 650;
-  line-height: 1.25;
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-weight: 560;
+  line-height: 1.2;
   scroll-margin-top: 5rem;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
 }
 .wiki-prose h1 { font-size: 1.9rem; margin-top: 0; }
 .wiki-prose h2 {
@@ -283,6 +292,45 @@
   color: var(--muted-foreground);
   border-bottom: 1px dashed color-mix(in oklch, var(--muted-foreground) 45%, transparent);
   cursor: help;
+}
+
+/* --------------------------------------------------------------------------
+   "Lacquer & Ledger" signature layer
+   -------------------------------------------------------------------------- */
+
+/* Editorial serif for display headings/titles. Apply to page + hero titles. */
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+
+/* Reading serif utility (for note-like body copy outside .wiki-prose). */
+.font-reading {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+}
+
+/* The lacquer tick — a short brushed accent mark. Sits above an eyebrow or
+   section title as the page's recurring signature. */
+.lacquer-tick::before {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 0.2rem;
+  margin-bottom: 0.9rem;
+  border-radius: 1px;
+  background: var(--primary);
+}
+
+/* Catalog-card metadata — mono, uppercase, letter-spaced, like a library card.
+   Use for note provenance rows (type · date · backlinks) and data eyebrows. */
+.catalog-meta {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
 /* Respect users who prefer reduced motion: neutralize animations/transitions. */

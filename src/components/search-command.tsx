@@ -305,7 +305,9 @@ export function SearchCommand({ docs }: SearchCommandProps) {
                 </div>
               )}
               {hybridHits.length > 0 && (
-                <CommandGroup heading="Closest in meaning">
+                <CommandGroup
+                  heading={<span className="catalog-meta">Closest in meaning</span>}
+                >
                   {hybridHits.map((hit) => (
                     <CommandItem
                       key={hit.slug}
@@ -329,7 +331,11 @@ export function SearchCommand({ docs }: SearchCommandProps) {
           ) : (
             <>
               <CommandEmpty>No results found.</CommandEmpty>
-              <CommandGroup heading={query ? "Results" : "Browse"}>
+              <CommandGroup
+                heading={
+                  <span className="catalog-meta">{query ? "Results" : "Browse"}</span>
+                }
+              >
                 {keywordResults.map((doc) => (
                   <CommandItem
                     key={doc.slug}
@@ -348,7 +354,7 @@ export function SearchCommand({ docs }: SearchCommandProps) {
 
               {/* Command actions — cmdk filters these by label/keywords, so the
                   group shows when the query is empty or matches a command. */}
-              <CommandGroup heading="Actions">
+              <CommandGroup heading={<span className="catalog-meta">Actions</span>}>
                 {actions.map((action) => {
                   const Icon = action.icon;
                   return (

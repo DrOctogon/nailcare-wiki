@@ -88,18 +88,20 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
         {/* Main article */}
         <div className="min-w-0">
           <header className="mb-8">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div
-                className="inline-flex items-center gap-1.5 text-sm font-medium"
-                style={{ color: meta.accent }}
-              >
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div className="lacquer-tick">
                 <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: meta.accent }}
-                />
-                {meta.singular}
+                  className="catalog-meta inline-flex items-center gap-1.5"
+                  style={{ color: meta.accent }}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: meta.accent }}
+                  />
+                  {meta.singular}
+                </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -119,37 +121,37 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
                 <ExportMenu slug={page.slug} title={page.title} />
               </div>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">
+            <h1 className="font-display text-3xl text-balance md:text-4xl">
               {page.title}
             </h1>
             {page.excerpt && (
-              <p className="text-muted-foreground mt-3 max-w-2xl text-lg">
+              <p className="text-muted-foreground font-reading mt-3 max-w-2xl text-lg">
                 {page.excerpt}
               </p>
             )}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+            <div className="catalog-meta mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               {page.status && (
                 <Badge variant={statusVariant(page.status)}>{page.status}</Badge>
               )}
               {page.domain && <Badge variant="outline">{page.domain}</Badge>}
               {page.address && (
-                <span className="text-muted-foreground inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" />
                   {page.address}
                 </span>
               )}
               {page.updated && (
-                <span className="text-muted-foreground inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" />
                   {page.updated}
                 </span>
               )}
-              <span className="text-muted-foreground inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1">
                 <FileText className="h-3.5 w-3.5" />
                 <span className="tabular-nums">{page.wordCount}</span> words
               </span>
               {page.backlinkCount > 0 && (
-                <span className="text-muted-foreground inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1">
                   <Link2 className="h-3.5 w-3.5" />
                   <span className="tabular-nums">{page.backlinkCount}</span>{" "}
                   backlink{page.backlinkCount === 1 ? "" : "s"}
@@ -192,7 +194,7 @@ function SemanticRelated({ pages }: SemanticRelatedProps) {
 
   return (
     <nav aria-label="Related by meaning">
-      <div className="text-muted-foreground mb-3 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+      <div className="catalog-meta mb-3 flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5" />
         Related by meaning
       </div>
@@ -232,9 +234,7 @@ function RelatedList({ related }: RelatedListProps) {
 
   return (
     <nav aria-label="Related pages">
-      <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-        Related
-      </div>
+      <div className="catalog-meta mb-3">Related</div>
       <ul className="space-y-1 text-sm">
         {related.map((link, index) =>
           link.slug ? (

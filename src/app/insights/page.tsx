@@ -33,11 +33,12 @@ export default function InsightsPage() {
       </Breadcrumb>
 
       <header className="mb-8">
-        <h1 className="flex items-center gap-2.5 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick">Local analytics</p>
+        <h1 className="font-display mt-1 flex items-center gap-2.5 text-3xl text-balance md:text-4xl">
           <BarChart3 className="text-chart-1 h-8 w-8" />
           Insights
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg">
+        <p className="text-muted-foreground font-reading mt-3 text-lg leading-relaxed">
           Local usage — never leaves your machine.
         </p>
       </header>

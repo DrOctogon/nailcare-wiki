@@ -64,10 +64,8 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
             <Sparkles className="h-4 w-4" />
           </span>
           <span className="flex flex-col leading-tight">
-            <span className="text-sm">Vault Explorer</span>
-            <span className="text-muted-foreground text-[11px] font-normal">
-              {totalPages} pages
-            </span>
+            <span className="font-display text-sm">Vault Explorer</span>
+            <span className="catalog-meta font-normal">{totalPages} pages</span>
           </span>
         </Link>
       </SidebarHeader>
@@ -96,7 +94,7 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>
+          <SidebarGroupLabel className="catalog-meta">
             <Library className="mr-1.5 h-3.5 w-3.5" /> Collections
           </SidebarGroupLabel>
           <SidebarMenu>

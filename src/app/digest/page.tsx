@@ -203,11 +203,12 @@ export default async function DigestPage() {
       </Breadcrumb>
 
       <header className="mb-8">
-        <h1 className="flex items-center gap-2.5 text-3xl font-semibold tracking-tight md:text-4xl">
+        <p className="catalog-meta lacquer-tick">Recent changes</p>
+        <h1 className="font-display mt-1 flex items-center gap-2.5 text-3xl text-balance md:text-4xl">
           <Newspaper className="text-chart-4 h-8 w-8" />
           Digest
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg">
+        <p className="text-muted-foreground font-reading mt-3 text-lg leading-relaxed">
           What changed recently in your vault.
         </p>
       </header>
@@ -266,7 +267,7 @@ export default async function DigestPage() {
               return (
                 <Card key={group.dir || "_root"}>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
+                    <CardTitle className="font-display flex items-center gap-2 text-lg">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
                         style={{ backgroundColor: meta.accent }}
