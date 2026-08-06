@@ -12,14 +12,24 @@ interface StatCardProps {
 
 export function StatCard({ label, value, icon: Icon, accent, hint }: StatCardProps) {
   return (
-    <Card className="flex-row items-center gap-4 p-5">
+    <Card
+      className="flex-row items-center gap-4 p-5"
+      style={
+        accent
+          ? { borderTopColor: `color-mix(in oklch, ${accent} 40%, var(--border))` }
+          : undefined
+      }
+    >
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md"
         style={{
           backgroundColor: accent
-            ? `color-mix(in oklch, ${accent} 16%, transparent)`
+            ? `color-mix(in oklch, ${accent} 14%, transparent)`
             : "var(--muted)",
           color: accent ?? "var(--muted-foreground)",
+          boxShadow: accent
+            ? `inset 0 0 0 1px color-mix(in oklch, ${accent} 22%, transparent)`
+            : undefined,
         }}
       >
         <Icon className="h-5 w-5" />

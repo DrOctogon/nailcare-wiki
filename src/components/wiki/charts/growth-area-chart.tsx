@@ -85,8 +85,9 @@ export function GrowthAreaChart({ data }: GrowthAreaChartProps) {
         <svg width={width} height={HEIGHT} role="img" aria-label="Cumulative pages over time">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+              <stop offset="55%" stopColor="var(--chart-1)" stopOpacity={0.08} />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
@@ -100,15 +101,16 @@ export function GrowthAreaChart({ data }: GrowthAreaChartProps) {
                   y2={yPos}
                   stroke="var(--border)"
                   strokeWidth={1}
-                  strokeOpacity={0.6}
+                  strokeOpacity={0.5}
+                  shapeRendering="crispEdges"
                 />
                 <text
                   x={-8}
                   y={yPos}
                   textAnchor="end"
                   dominantBaseline="middle"
-                  className="fill-muted-foreground"
-                  fontSize={11}
+                  className="fill-muted-foreground font-mono"
+                  fontSize={10}
                 >
                   {t}
                 </text>
@@ -121,8 +123,8 @@ export function GrowthAreaChart({ data }: GrowthAreaChartProps) {
                 x={xPos}
                 y={innerH + 18}
                 textAnchor="middle"
-                className="fill-muted-foreground"
-                fontSize={11}
+                className="fill-muted-foreground font-mono"
+                fontSize={10}
               >
                 {fmtAxis(t)}
               </text>

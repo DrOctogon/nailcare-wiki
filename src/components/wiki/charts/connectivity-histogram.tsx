@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { scaleBand, scaleLinear } from "d3-scale";
 
 import type { HistogramBin } from "@/lib/wiki/vault";
@@ -15,6 +15,7 @@ const MARGIN = { top: 18, right: 8, bottom: 28, left: 32 };
 
 export function ConnectivityHistogram({ data }: ConnectivityHistogramProps) {
   const [ref, width] = useMeasure<HTMLDivElement>();
+  const gradientId = useId();
   const [hover, setHover] = useState<number | null>(null);
 
   const innerW = Math.max(0, width - MARGIN.left - MARGIN.right);
@@ -39,6 +40,12 @@ export function ConnectivityHistogram({ data }: ConnectivityHistogramProps) {
           role="img"
           aria-label="Distribution of pages by backlink count"
         >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.55} />
+            </linearGradient>
+          </defs>
           <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
             {yTicks.map(({ t, yPos }) => (
               <g key={t}>
@@ -49,15 +56,16 @@ export function ConnectivityHistogram({ data }: ConnectivityHistogramProps) {
                   y2={yPos}
                   stroke="var(--border)"
                   strokeWidth={1}
-                  strokeOpacity={0.6}
+                  strokeOpacity={0.5}
+                  shapeRendering="crispEdges"
                 />
                 <text
                   x={-8}
                   y={yPos}
                   textAnchor="end"
                   dominantBaseline="middle"
-                  className="fill-muted-foreground"
-                  fontSize={11}
+                  className="fill-muted-foreground font-mono"
+                  fontSize={10}
                 >
                   {t}
                 </text>
@@ -84,15 +92,16 @@ export function ConnectivityHistogram({ data }: ConnectivityHistogramProps) {
                     width={bw}
                     height={Math.max(0, bh)}
                     rx={4}
-                    fill="var(--chart-1)"
-                    opacity={hover === null || active ? 1 : 0.5}
+                    fill={`url(#${gradientId})`}
+                    opacity={hover === null || active ? 1 : 0.45}
+                    style={{ transition: "opacity 0.2s ease" }}
                   />
                   <text
                     x={bx + bw / 2}
                     y={by - 6}
                     textAnchor="middle"
-                    className="fill-foreground"
-                    fontSize={11}
+                    className="fill-foreground font-mono tabular-nums"
+                    fontSize={10}
                     fontWeight={active ? 600 : 400}
                   >
                     {bin.count}
@@ -101,8 +110,8 @@ export function ConnectivityHistogram({ data }: ConnectivityHistogramProps) {
                     x={bx + bw / 2}
                     y={innerH + 18}
                     textAnchor="middle"
-                    className="fill-muted-foreground"
-                    fontSize={11}
+                    className="fill-muted-foreground font-mono"
+                    fontSize={10}
                   >
                     {bin.label}
                   </text>

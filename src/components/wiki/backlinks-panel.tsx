@@ -1,5 +1,3 @@
-import { Link2 } from "lucide-react";
-
 import type { WikiPageMeta } from "@/lib/wiki/types";
 import { PageCard } from "@/components/wiki/page-card";
 
@@ -9,11 +7,9 @@ interface BacklinksPanelProps {
 
 export function BacklinksPanel({ pages }: BacklinksPanelProps) {
   return (
-    <section className="mt-12">
-      <h2 className="catalog-meta mb-4 flex items-center gap-2">
-        <Link2 className="h-4 w-4" />
-        Linked from
-        <span className="tabular-nums">({pages.length})</span>
+    <section className="border-border/70 mt-12 border-t pt-8">
+      <h2 className="catalog-meta mb-5">
+        Referenced by <span className="tabular-nums">({pages.length})</span>
       </h2>
       {pages.length === 0 ? (
         <p className="text-muted-foreground rounded-lg border border-dashed px-4 py-6 text-sm">

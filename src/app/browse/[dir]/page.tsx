@@ -65,7 +65,7 @@ export default async function BrowsePage({ params }: BrowsePageProps) {
         </BreadcrumbList>
       </Breadcrumb>
 
-      <header className="mb-8">
+      <header className="reveal mb-8">
         <p className="catalog-meta lacquer-tick mb-3">
           Collection · {pages.length}{" "}
           {pages.length === 1 ? meta.singular.toLowerCase() : "notes"}
@@ -103,7 +103,9 @@ export default async function BrowsePage({ params }: BrowsePageProps) {
         </p>
       </header>
 
-      <BrowseControls pages={pages} />
+      <div className="reveal reveal-2">
+        <BrowseControls pages={pages} />
+      </div>
     </div>
   );
 }

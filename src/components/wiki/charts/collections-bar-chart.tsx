@@ -26,12 +26,12 @@ export function CollectionsBarChart({ data }: CollectionsBarChartProps) {
               <span className="text-muted-foreground group-hover:text-foreground truncate text-right text-sm transition-colors">
                 {meta.label}
               </span>
-              <span className="bg-muted/60 relative h-6 overflow-hidden rounded-md">
+              <span className="bg-muted/50 ring-border/50 relative h-6 overflow-hidden rounded-md ring-1 ring-inset">
                 <span
                   className="absolute inset-y-0 left-0 rounded-md transition-[width] duration-500 group-hover:brightness-110"
                   style={{
                     width: `${pct}%`,
-                    backgroundColor: "var(--chart-1)",
+                    background: `linear-gradient(90deg, ${meta.accent}, color-mix(in oklch, ${meta.accent} 55%, transparent))`,
                   }}
                 />
               </span>

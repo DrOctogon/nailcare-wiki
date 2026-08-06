@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, FileText, Link2, MapPin, Pencil, Sparkles } from "lucide-react";
+import { Clock, Link2, MapPin, Pencil, Sparkles } from "lucide-react";
 
 import {
   getAllPageMetas,
@@ -87,8 +87,8 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
         {/* Main article */}
         <div className="min-w-0">
-          <header className="mb-8">
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <header className="reveal mb-8">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div className="lacquer-tick">
                 <span
                   className="catalog-meta inline-flex items-center gap-1.5"
@@ -121,15 +121,15 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
                 <ExportMenu slug={page.slug} title={page.title} />
               </div>
             </div>
-            <h1 className="font-display text-3xl text-balance md:text-4xl">
+            <h1 className="font-display text-3xl leading-tight tracking-tight text-balance md:text-4xl">
               {page.title}
             </h1>
             {page.excerpt && (
-              <p className="text-muted-foreground font-reading mt-3 max-w-2xl text-lg">
+              <p className="text-muted-foreground font-reading mt-4 max-w-2xl text-lg leading-relaxed text-pretty">
                 {page.excerpt}
               </p>
             )}
-            <div className="catalog-meta mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="catalog-meta mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               {page.status && (
                 <Badge variant={statusVariant(page.status)}>{page.status}</Badge>
               )}
@@ -147,7 +147,6 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
                 </span>
               )}
               <span className="inline-flex items-center gap-1">
-                <FileText className="h-3.5 w-3.5" />
                 <span className="tabular-nums">{page.wordCount}</span> words
               </span>
               {page.backlinkCount > 0 && (
@@ -171,7 +170,7 @@ export default async function WikiDetailPage({ params }: WikiPageProps) {
 
         {/* Right rail */}
         <aside className="hidden w-64 lg:block">
-          <div className="sticky top-8 space-y-8">
+          <div className="sticky top-8 [&>*+*]:mt-7 [&>*+*]:border-t [&>*+*]:border-border/70 [&>*+*]:pt-7">
             <Toc headings={page.headings} />
             <RelatedList related={page.related} />
             <SemanticRelated pages={semanticRelated} />
@@ -198,24 +197,20 @@ function SemanticRelated({ pages }: SemanticRelatedProps) {
         <Sparkles className="h-3.5 w-3.5" />
         Related by meaning
       </div>
-      <ul className="space-y-2 text-sm">
+      <ul className="space-y-0.5 text-sm">
         {pages.map((p) => {
           const m = dirMeta(p.dir);
           return (
             <li key={p.slug}>
               <Link
                 href={`/wiki/${p.slug}`}
-                className="group hover:border-primary/40 block rounded-lg border p-2.5 transition-colors"
+                className="group text-muted-foreground hover:text-foreground flex items-start gap-2 py-1 transition-colors"
               >
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: m.accent }}
-                  />
-                  <span className="group-hover:text-foreground text-muted-foreground line-clamp-2 transition-colors">
-                    {p.title}
-                  </span>
-                </span>
+                <span
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: m.accent }}
+                />
+                <span className="line-clamp-2 leading-snug">{p.title}</span>
               </Link>
             </li>
           );
@@ -235,23 +230,25 @@ function RelatedList({ related }: RelatedListProps) {
   return (
     <nav aria-label="Related pages">
       <div className="catalog-meta mb-3">Related</div>
-      <ul className="space-y-1 text-sm">
+      <ul className="space-y-0.5 text-sm">
         {related.map((link, index) =>
           link.slug ? (
             <li key={`${link.slug}-${index}`}>
               <Link
                 href={`/wiki/${link.slug}`}
-                className="text-muted-foreground hover:text-foreground line-clamp-1 block py-0.5 transition-colors"
+                className="group text-muted-foreground hover:text-foreground flex items-center gap-2 py-1 transition-colors"
               >
-                {link.label}
+                <span className="bg-border group-hover:bg-primary h-1 w-1 shrink-0 rounded-full transition-colors" />
+                <span className="line-clamp-1">{link.label}</span>
               </Link>
             </li>
           ) : (
             <li
               key={`${link.target}-${index}`}
-              className="text-muted-foreground/60 line-clamp-1 py-0.5"
+              className="text-muted-foreground/60 flex items-center gap-2 py-1"
             >
-              {link.label}
+              <span className="bg-border/60 h-1 w-1 shrink-0 rounded-full" />
+              <span className="line-clamp-1">{link.label}</span>
             </li>
           ),
         )}

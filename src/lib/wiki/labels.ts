@@ -87,15 +87,35 @@ export function dirMeta(dir: string): DirMeta {
   );
 }
 
-/** Status pill styling — keyed by common Obsidian status values. */
+/**
+ * Status chip styling — keyed by common Obsidian status values.
+ * Returns soft-tinted badge variants (see badge.tsx): "settled" states read
+ * teal-slate, "in-progress" states read brass, everything else a neutral tint.
+ */
 export function statusVariant(
   status: string | null,
-): "default" | "secondary" | "outline" {
-  if (!status) return "outline";
+): "soft" | "soft-stable" | "soft-developing" {
+  if (!status) return "soft";
   const s = status.toLowerCase();
-  if (s === "evergreen" || s === "stable" || s === "verified") return "default";
-  if (s === "developing" || s === "growing") return "secondary";
-  return "outline";
+  if (
+    s === "evergreen" ||
+    s === "stable" ||
+    s === "mature" ||
+    s === "verified" ||
+    s === "complete"
+  ) {
+    return "soft-stable";
+  }
+  if (
+    s === "developing" ||
+    s === "growing" ||
+    s === "draft" ||
+    s === "seed" ||
+    s === "budding"
+  ) {
+    return "soft-developing";
+  }
+  return "soft";
 }
 
 export const TYPE_LABEL: Record<WikiType, string> = {

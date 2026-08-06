@@ -52,7 +52,7 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
       {/* Hero */}
-      <section className="mb-12">
+      <section className="hero-glow reveal mb-12">
         <p className="catalog-meta lacquer-tick">Compounding knowledge vault</p>
         <h1 className="font-display mt-1 max-w-3xl text-4xl text-balance md:text-6xl">
           A living web of research
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* Stats */}
-      <section className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="reveal reveal-2 mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total pages"
           value={stats.total}
@@ -111,8 +111,8 @@ export default async function DashboardPage() {
       </section>
 
       {/* Vault analytics */}
-      <section className="mb-12">
-        <h2 className="font-display mb-4 text-xl md:text-2xl">
+      <section className="reveal reveal-3 mb-12">
+        <h2 className="font-display lacquer-tick mb-4 text-xl md:text-2xl">
           Vault analytics
         </h2>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -159,7 +159,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* Collections */}
-      <section className="mb-12">
+      <section className="reveal reveal-4 mb-12">
         <h2 className="font-display mb-4 text-xl md:text-2xl">Collections</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {collections.map((dir) => {
@@ -196,7 +196,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+      <div className="reveal reveal-5 grid grid-cols-1 gap-10 lg:grid-cols-3">
         {/* Most linked */}
         <section className="lg:col-span-2">
           <h2 className="font-display mb-4 flex items-center gap-2 text-xl md:text-2xl">

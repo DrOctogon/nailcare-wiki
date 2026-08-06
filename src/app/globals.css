@@ -45,6 +45,18 @@
   --sidebar-accent-foreground: oklch(0.28 0.02 265);
   --sidebar-border: oklch(0.9 0.006 265);
   --sidebar-ring: oklch(0.47 0.155 20);
+
+  /* Material depth — cards float as clean stock above the ledger ground.
+     Layered soft shadow keyed to the ink foreground (cool, not neutral gray). */
+  --shadow-card:
+    0 1px 2px oklch(0.22 0.03 265 / 0.05),
+    0 3px 8px oklch(0.22 0.03 265 / 0.05);
+  --shadow-card-hover:
+    0 2px 4px oklch(0.22 0.03 265 / 0.06),
+    0 10px 26px oklch(0.22 0.03 265 / 0.1);
+  /* Ledger ground — a whisper-faint graph-paper dot, only visible in the
+     gutters between cards. Sells the archive without touching legibility. */
+  --ledger-dot: color-mix(in oklch, var(--foreground) 4.5%, transparent);
 }
 
 .dark {
@@ -82,6 +94,16 @@
   --sidebar-accent-foreground: oklch(0.925 0.008 75);
   --sidebar-border: oklch(0.92 0.02 75 / 12%);
   --sidebar-ring: oklch(0.62 0.155 24);
+
+  /* Dark: shadows read as depth-black plus a hairline lift; keep the ground dot
+     keyed to the warm paper foreground so it stays a faint texture, not glare. */
+  --shadow-card:
+    0 1px 2px oklch(0 0 0 / 0.3),
+    0 4px 12px oklch(0 0 0 / 0.32);
+  --shadow-card-hover:
+    0 2px 6px oklch(0 0 0 / 0.36),
+    0 14px 34px oklch(0 0 0 / 0.42);
+  --ledger-dot: color-mix(in oklch, var(--foreground) 5%, transparent);
 }
 
 @theme inline {
@@ -138,8 +160,82 @@
     color: var(--foreground);
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    /* Faint ledger graph-paper dot — fixed so it reads as the ground the whole
+       app sits on. Only perceptible in the gutters between opaque cards. */
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      var(--ledger-dot) 1px,
+      transparent 0
+    );
+    background-size: 26px 26px;
+    background-attachment: fixed;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Material depth + motion — the "gorgeous" layer.
+   Cards get a soft layered shadow so they float as clean stock above the
+   ledger ground; interactive cards (wrapped in a link / .group) lift on hover.
+   -------------------------------------------------------------------------- */
+[data-slot="card"] {
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow 0.22s cubic-bezier(0.2, 0.6, 0.2, 1),
+    transform 0.22s cubic-bezier(0.2, 0.6, 0.2, 1),
+    border-color 0.22s ease;
+}
+/* Lift only when the card is the interactive target (direct child of a hovered
+   link or .group wrapper). Static cards (stats, panels) stay at rest. */
+a:hover > [data-slot="card"],
+.group:hover > [data-slot="card"],
+.group\/card:hover > [data-slot="card"] {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-3px);
+}
+
+/* Hero atmosphere — a single soft lacquer wash bleeding from the top-left of
+   the primary header. Used once, on the dashboard hero, via .hero-glow. */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -6rem;
+  left: -8rem;
+  width: 42rem;
+  height: 28rem;
+  pointer-events: none;
+  background: radial-gradient(
+    60% 60% at 30% 30%,
+    color-mix(in oklch, var(--primary) 16%, transparent),
+    transparent 70%
+  );
+  filter: blur(8px);
+}
+
+/* Entrance motion — a quiet staggered fade-up for above-the-fold sections and
+   card grids. Reduced-motion is neutralized by the block further down. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: reveal-up 0.6s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+.reveal-1 { animation-delay: 0.04s; }
+.reveal-2 { animation-delay: 0.1s; }
+.reveal-3 { animation-delay: 0.16s; }
+.reveal-4 { animation-delay: 0.22s; }
+.reveal-5 { animation-delay: 0.28s; }
 
 /* --------------------------------------------------------------------------
    Wiki prose — styling for server-rendered markdown (.wiki-prose wrapper)

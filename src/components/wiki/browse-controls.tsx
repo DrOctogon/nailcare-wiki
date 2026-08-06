@@ -48,12 +48,14 @@ export function BrowseControls({ pages, showDir = false }: BrowseControlsProps) 
             className="h-9 pl-8"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="catalog-meta mr-0.5 hidden sm:inline">Sort</span>
           <Button
             size="sm"
             variant={sort === "az" ? "default" : "outline"}
             onClick={() => setSort("az")}
             aria-pressed={sort === "az"}
+            className="h-9 px-3"
           >
             <ArrowDownAZ className="h-3.5 w-3.5" /> A–Z
           </Button>
@@ -62,6 +64,7 @@ export function BrowseControls({ pages, showDir = false }: BrowseControlsProps) 
             variant={sort === "backlinks" ? "default" : "outline"}
             onClick={() => setSort("backlinks")}
             aria-pressed={sort === "backlinks"}
+            className="h-9 px-3"
           >
             <Link2 className="h-3.5 w-3.5" /> Most linked
           </Button>

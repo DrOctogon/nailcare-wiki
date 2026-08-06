@@ -6,7 +6,6 @@ import {
   Home,
   Network,
   Tags,
-  Sparkles,
   Library,
   CalendarClock,
   MessageCircleQuestion,
@@ -39,6 +38,15 @@ interface AppSidebarProps {
   totalPages: number;
 }
 
+// Lacquer active signal: a faint primary-tinted pill plus a flush-left oxblood
+// accent bar — the ledger index tab that marks the current page. Passed to both
+// nav groups so the whole sidebar reads consistently.
+const navButtonClass =
+  "relative data-active:bg-primary/10 data-active:font-medium " +
+  "before:pointer-events-none before:absolute before:top-1.5 before:bottom-1.5 " +
+  "before:left-0 before:w-[3px] before:rounded-full before:bg-primary " +
+  "before:opacity-0 before:transition-opacity data-active:before:opacity-100";
+
 export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
   const pathname = usePathname();
 
@@ -58,14 +66,18 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
       <SidebarHeader>
         <Link
           href="/"
-          className="flex items-center gap-2.5 px-2 py-1.5 font-semibold"
+          className="flex items-center gap-2.5 rounded-md px-2 py-1.5"
         >
-          <span className="bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-lg">
-            <Sparkles className="h-4 w-4" />
+          {/* Bespoke archive mark — a lacquered tile with a Fraunces monogram,
+              inner hairline for the enamelled edge. Tokens only. */}
+          <span className="bg-primary text-primary-foreground ring-primary-foreground/15 flex h-8 w-8 shrink-0 items-center justify-center rounded-md ring-1 ring-inset">
+            <span className="font-display text-base leading-none">V</span>
           </span>
-          <span className="flex flex-col leading-tight">
-            <span className="font-display text-sm">Vault Explorer</span>
-            <span className="catalog-meta font-normal">{totalPages} pages</span>
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="font-display truncate text-sm leading-tight">
+              Vault Explorer
+            </span>
+            <span className="catalog-meta tabular-nums">{totalPages} pages</span>
           </span>
         </Link>
       </SidebarHeader>
@@ -82,6 +94,7 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     isActive={active}
+                    className={navButtonClass}
                     render={<Link href={item.href} />}
                   >
                     <item.icon />
@@ -105,11 +118,14 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
                 <SidebarMenuItem key={dir}>
                   <SidebarMenuButton
                     isActive={active}
+                    className={navButtonClass}
                     render={<Link href={href} />}
                   >
                     <span>{dirMeta(dir).label}</span>
                   </SidebarMenuButton>
-                  <SidebarMenuBadge>{count}</SidebarMenuBadge>
+                  <SidebarMenuBadge className="font-mono text-[0.7rem] tabular-nums">
+                    {count}
+                  </SidebarMenuBadge>
                 </SidebarMenuItem>
               );
             })}

@@ -91,7 +91,7 @@ export default async function TagsPage() {
                   <Link
                     key={tag}
                     href={`/tags/${encodeURIComponent(tag)}`}
-                    className={`text-foreground/80 hover:text-primary inline-flex items-baseline gap-1 leading-none transition-colors ${TIER_CLASS[tier]}`}
+                    className={`text-foreground/80 hover:text-primary hover:bg-accent -mx-1.5 inline-flex items-baseline gap-1 rounded px-1.5 leading-none transition-colors ${TIER_CLASS[tier]}`}
                   >
                     <Hash className="text-muted-foreground h-[0.7em] w-[0.7em] self-center" />
                     {tag}

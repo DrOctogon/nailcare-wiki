@@ -17,15 +17,15 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
   return (
     <Link href={`/wiki/${page.slug}`} className="group block h-full">
       <Card className="hover:border-primary/40 h-full gap-3 transition-colors">
-        <CardHeader className="gap-1.5">
-          <div className="catalog-meta flex items-center gap-2">
+        <CardHeader className="gap-2">
+          <div className="catalog-meta flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
             {showDir && (
               <span
                 className="inline-flex items-center gap-1.5"
                 style={{ color: meta.accent }}
               >
                 <span
-                  className="h-2 w-2 rounded-full"
+                  className="h-1.5 w-1.5 rounded-full"
                   style={{ backgroundColor: meta.accent }}
                 />
                 {meta.singular}
@@ -37,17 +37,17 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
               </Badge>
             )}
           </div>
-          <h3 className="group-hover:text-primary font-reading flex items-start gap-1 text-base font-medium leading-snug transition-colors">
+          <h3 className="group-hover:text-primary font-reading flex items-start gap-1.5 text-base font-medium leading-snug tracking-[-0.01em] text-balance transition-colors">
             <span className="line-clamp-2">{page.title}</span>
-            <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+            <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 -translate-x-1 translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:translate-y-0 group-hover:opacity-100" />
           </h3>
         </CardHeader>
         <CardContent className="flex-1">
-          <p className="text-muted-foreground line-clamp-3 text-sm">
+          <p className="text-muted-foreground line-clamp-3 text-sm leading-relaxed">
             {page.excerpt || "No summary available."}
           </p>
         </CardContent>
-        <CardFooter className="catalog-meta gap-3">
+        <CardFooter className="catalog-meta flex-wrap gap-x-3 gap-y-1">
           {page.backlinkCount > 0 && (
             <span className="inline-flex items-center gap-1">
               <Link2 className="h-3.5 w-3.5" />
@@ -55,7 +55,7 @@ export function PageCard({ page, showDir = false }: PageCardProps) {
             </span>
           )}
           {page.tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="truncate">
+            <span key={tag} className="max-w-[9rem] truncate">
               #{tag}
             </span>
           ))}

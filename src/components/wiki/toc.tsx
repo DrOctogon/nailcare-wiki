@@ -63,7 +63,7 @@ export function Toc({ headings }: TocProps) {
   return (
     <nav aria-label="Table of contents">
       <div className="catalog-meta mb-3">On this page</div>
-      <ul className="space-y-1 text-sm">
+      <ul className="space-y-0.5 text-sm">
         {items.map((heading) => {
           const isActive = heading.id === activeId;
           return (
@@ -72,11 +72,11 @@ export function Toc({ headings }: TocProps) {
                 href={`#${heading.id}`}
                 onClick={(event) => handleClick(event, heading.id)}
                 className={cn(
-                  "hover:text-foreground block border-l-2 py-0.5 transition-colors",
+                  "block border-l-2 py-1 pr-1 transition-colors",
                   heading.depth === 3 ? "pl-5" : "pl-3",
                   isActive
                     ? "border-primary text-foreground font-medium"
-                    : "border-transparent text-muted-foreground",
+                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground",
                 )}
               >
                 {heading.text}

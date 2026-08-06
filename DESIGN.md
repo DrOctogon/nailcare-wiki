@@ -48,7 +48,25 @@ system below in page/component TSX only.
    and `prefers-reduced-motion`.
 7. Do NOT touch `globals.css`, `layout.tsx`, tests, or CI config.
 
+## Material & motion primitives (globals.css — use, don't redefine)
+The foundation now carries the depth layer. Apply these; never re-implement them
+inline or add competing shadows/animation.
+- **Card depth is automatic.** Every `[data-slot="card"]` gets `--shadow-card`
+  and lifts on hover when it's the direct child of a hovered `<a>`/`.group`.
+  Don't add `shadow-*` utilities to cards; don't fight the lift. Cards read as
+  clean stock floating above a faint ledger-dot ground (`body` background).
+- **`.hero-glow`** — one soft lacquer wash, used **once**, on a page's primary
+  hero header (dashboard uses it). Do not sprinkle it on sections/cards.
+- **`.reveal`** + `.reveal-1..5` — a quiet staggered fade-up. Put `.reveal` on
+  above-the-fold sections/grids, staggering with the numbered delay classes
+  (hero=`.reveal`, next=`.reveal reveal-2`, …). Use sparingly — entrance only,
+  not on every element, never on content the user scrolls back to repeatedly.
+  `prefers-reduced-motion` already neutralizes it.
+- **Status badges**: prefer soft tinted badges (tint bg + colored text +
+  hairline), not heavy solid-dark pills. Keep them quiet against the cards.
+
 ## Restraint
-Spend boldness on the display type + lacquer signature. Everything else stays
-disciplined: quiet cards, hairline rules, consistent spacing, no decoration that
-doesn't encode meaning.
+Spend boldness on the display type + lacquer signature + the one hero glow.
+Everything else stays disciplined: quiet elevated cards, hairline rules,
+consistent spacing, tinted (not solid) status chips, no decoration that doesn't
+encode meaning. Chanel rule — after each surface, remove one accessory.

@@ -19,6 +19,15 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Soft-tinted status chips — quiet catalog metadata, not loud pills.
+        // Tint = ~14% of the status color; text darkens/lightens toward the
+        // page foreground so contrast holds in both themes; hairline border.
+        soft:
+          "bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] text-muted-foreground border-[color-mix(in_oklch,var(--muted-foreground)_24%,transparent)] font-medium tracking-[0.09em] uppercase",
+        "soft-stable":
+          "bg-[color-mix(in_oklch,var(--chart-2)_14%,transparent)] text-[color-mix(in_oklch,var(--chart-2)_70%,var(--foreground))] border-[color-mix(in_oklch,var(--chart-2)_30%,transparent)] font-medium tracking-[0.09em] uppercase",
+        "soft-developing":
+          "bg-[color-mix(in_oklch,var(--chart-3)_16%,transparent)] text-[color-mix(in_oklch,var(--chart-3)_58%,var(--foreground))] border-[color-mix(in_oklch,var(--chart-3)_34%,transparent)] font-medium tracking-[0.09em] uppercase",
       },
     },
     defaultVariants: {

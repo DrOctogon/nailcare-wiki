@@ -632,7 +632,7 @@ export function AskPanel() {
   return (
     <div className="space-y-6">
       {/* Header: new chat + history + model picker + HyDE toggle */}
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -805,6 +805,34 @@ export function AskPanel() {
           ))}
       </div>
 
+      {/* Empty state — an inviting archive prompt with example questions. The
+          page header already carries the lacquer tick, so this stays a quiet
+          eyebrow + display invitation. Chips reuse the fillExample handler. */}
+      {turns.length === 0 && (
+        <div className="reveal border-border/60 rounded-xl border border-dashed px-5 py-9 text-center sm:px-8 sm:py-11">
+          <p className="catalog-meta">Grounded in your own notes</p>
+          <h2 className="font-display mt-2 text-2xl text-balance sm:text-[1.75rem]">
+            What do you want to pull from the archive?
+          </h2>
+          <p className="text-muted-foreground font-reading mx-auto mt-3 max-w-md text-base leading-relaxed">
+            The vault retrieves the most relevant notes, then a local model
+            answers from them. Start with one of these:
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {EXAMPLE_QUESTIONS.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => fillExample(ex)}
+                className="border-border/60 hover:bg-accent hover:text-foreground hover:border-border text-muted-foreground inline-flex min-h-9 items-center rounded-full border px-3.5 py-2 text-sm transition-colors"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Conversation */}
       {turns.length > 0 && (
         <div className="space-y-6">
@@ -942,22 +970,6 @@ export function AskPanel() {
           <CornerDownLeft className="h-3 w-3" />
           Press ⌘/Ctrl + Enter to send. Retrieval and the model both run locally.
         </p>
-
-        {/* Example chips — only when the conversation is empty */}
-        {turns.length === 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {EXAMPLE_QUESTIONS.map((ex) => (
-              <button
-                key={ex}
-                type="button"
-                onClick={() => fillExample(ex)}
-                className="border-border/60 hover:bg-accent text-muted-foreground hover:text-foreground rounded-full border px-3 py-1 text-xs transition-colors"
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

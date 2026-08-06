@@ -86,7 +86,7 @@ export function BookmarksView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <p className="catalog-meta">
           <span className="tabular-nums">{bookmarks.length}</span> saved note
           {bookmarks.length === 1 ? "" : "s"}
@@ -95,7 +95,7 @@ export function BookmarksView() {
           variant="ghost"
           size="sm"
           onClick={handleClearAll}
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive h-9 px-3"
         >
           <Trash2 data-icon="inline-start" />
           Clear all
@@ -133,7 +133,7 @@ export function BookmarksView() {
                   size="icon-sm"
                   onClick={() => removeBookmark(bookmark.slug)}
                   aria-label={`Remove ${bookmark.title} from reading queue`}
-                  className="text-muted-foreground hover:text-destructive shrink-0"
+                  className="text-muted-foreground hover:text-destructive size-9 shrink-0"
                 >
                   <Trash2 />
                 </Button>

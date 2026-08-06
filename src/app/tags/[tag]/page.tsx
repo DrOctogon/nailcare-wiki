@@ -70,7 +70,7 @@ export default async function TagPage({ params }: TagPageProps) {
           <span className="text-muted-foreground">#</span>
           {decoded}
         </h1>
-        <p className="text-muted-foreground mt-3 text-lg">
+        <p className="text-muted-foreground font-reading mt-3 text-lg">
           {pages.length.toLocaleString()} page{pages.length === 1 ? "" : "s"}{" "}
           tagged with this topic.
         </p>
