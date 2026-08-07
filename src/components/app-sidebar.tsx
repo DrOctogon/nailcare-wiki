@@ -12,6 +12,7 @@ import {
   BarChart3,
   BookmarkCheck,
   Newspaper,
+  Database,
 } from "lucide-react";
 
 import { dirMeta } from "@/lib/wiki/labels";
@@ -59,6 +60,7 @@ export function AppSidebar({ collections, totalPages }: AppSidebarProps) {
     { href: "/tags", label: "Tags", icon: Tags },
     { href: "/bookmarks", label: "Reading Queue", icon: BookmarkCheck },
     { href: "/insights", label: "Insights", icon: BarChart3 },
+    { href: "/data", label: "Salon Data", icon: Database },
   ];
 
   return (
