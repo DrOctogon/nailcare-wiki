@@ -841,6 +841,7 @@ export interface RankedNote {
  * to an index page are skipped. Returns up to `limit` rows.
  */
 export const getTopNotes = cache(async (limit = 15): Promise<RankedNote[]> => {
+  if (limit <= 0) return [];
   const [{ nodes }, metas] = await Promise.all([getGraph(), getAllPageMetas()]);
   const metaBySlug = new Map(metas.map((m) => [m.slug, m]));
 

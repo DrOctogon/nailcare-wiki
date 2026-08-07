@@ -205,7 +205,6 @@ export function ActivityHeatmap({ data }: ActivityHeatmapProps) {
                       <div
                         key={cell.time}
                         title={label}
-                        aria-label={label}
                         className="rounded-[2px]"
                         style={{
                           width: 12,

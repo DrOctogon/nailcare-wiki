@@ -47,6 +47,14 @@ export function SalonMap({ points, total, loading }: SalonMapProps) {
     return `${plotted} plotted · ${matches} matches`;
   }, [points.length, total]);
 
+  // State-aware label so screen readers hear loading/empty state, not a static
+  // string (role="img" would otherwise suppress the visible overlay text).
+  const ariaLabel = useMemo(() => {
+    if (loading) return "Map of salon locations — plotting";
+    if (isEmpty) return "Map of salon locations — no mapped results";
+    return `Map of salon locations — ${points.length.toLocaleString()} plotted`;
+  }, [loading, isEmpty, points.length]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const container = ref.current;
@@ -115,7 +123,7 @@ export function SalonMap({ points, total, loading }: SalonMapProps) {
     <div ref={ref} className="relative w-full">
       <div
         role="img"
-        aria-label="Map of salon locations"
+        aria-label={ariaLabel}
         className="w-full overflow-hidden rounded-[var(--radius)] border border-border bg-background"
         style={{ height: height || undefined }}
       >

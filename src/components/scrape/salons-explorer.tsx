@@ -31,6 +31,19 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 50;
 const COLUMN_COUNT = 7;
 
+/** Allowlist external link schemes; null out anything unsafe. Protocol-less
+ *  bare domains are upgraded to https. Blocks javascript:/data:/etc. */
+function safeExternalHref(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const v = url.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  // Reject any other explicit scheme (javascript:, data:, mailto:, vbscript:, …).
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return null;
+  // Bare domain-ish value → assume https.
+  if (/^[\w-]+(\.[\w-]+)+/.test(v)) return `https://${v}`;
+  return null;
+}
+
 type SortKey = "name" | "rating" | "reviewCount" | "confidence";
 type SortDir = "asc" | "desc";
 
@@ -99,9 +112,10 @@ export function SalonsExplorer({ facets }: SalonsExplorerProps) {
 
   const [geo, setGeo] = React.useState<GeoResponse | null>(null);
   const [geoLoading, setGeoLoading] = React.useState(true);
+  const [geoError, setGeoError] = React.useState<string | null>(null);
 
   const hasActiveFilters =
-    debouncedQ.trim() !== "" ||
+    qInput.trim() !== "" ||
     country !== "" ||
     state !== "" ||
     source !== "" ||
@@ -173,6 +187,7 @@ export function SalonsExplorer({ facets }: SalonsExplorerProps) {
   React.useEffect(() => {
     const controller = new AbortController();
     setGeoLoading(true);
+    setGeoError(null);
 
     fetch(`/api/salons/geo?${filterParams(false)}`, { signal: controller.signal })
       .then((res) => {
@@ -185,7 +200,12 @@ export function SalonsExplorer({ facets }: SalonsExplorerProps) {
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setGeo({ count: 0, points: [] });
+        // Don't fabricate a zero — leave geo null so the StatCard falls back to
+        // the dataset figure, and surface a retry affordance on the map card.
+        setGeo(null);
+        setGeoError(
+          error instanceof Error ? error.message : "Unable to load map.",
+        );
         setGeoLoading(false);
       });
 
@@ -274,6 +294,23 @@ export function SalonsExplorer({ facets }: SalonsExplorerProps) {
       {/* Map */}
       <Card className="overflow-hidden p-0">
         <SalonMap points={mapPoints} total={mapCount} loading={geoLoading} />
+        {geoError && (
+          <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+            <span className="catalog-meta inline-flex items-center gap-2">
+              <TriangleAlert className="h-4 w-4" />
+              {geoError}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setReloadKey((key) => key + 1)}
+              className="h-9"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Retry
+            </Button>
+          </div>
+        )}
       </Card>
 
       {/* Filter toolbar */}
@@ -661,10 +698,11 @@ interface LinkIconProps {
 }
 
 function LinkIcon({ href, label, icon: Icon }: LinkIconProps) {
-  if (!href) return null;
+  const safe = safeExternalHref(href);
+  if (!safe) return null;
   return (
     <a
-      href={href}
+      href={safe}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}

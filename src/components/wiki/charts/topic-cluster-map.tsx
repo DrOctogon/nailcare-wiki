@@ -97,6 +97,26 @@ export function TopicClusterMap({ data }: TopicClusterMapProps) {
     ? [...placed.filter((p) => p.node.id !== hovered), activeLabel]
     : placed;
 
+  // Position the floating label so it never escapes the overflow-hidden wrapper.
+  // TIP_W tracks the label's real max width (16rem, capped to the container less
+  // its 1rem margin); TIP_H is a conservative height estimate. VERTICAL: keep the
+  // label above the node when there's room, otherwise flip it below. HORIZONTAL:
+  // anchor the left edge at the node and clamp it fully inside the container.
+  const TIP_W = Math.min(256, Math.max(0, width - 16));
+  const TIP_H = 40;
+  const labelBox = activeLabel
+    ? (() => {
+        const showAbove = activeLabel.cy - activeLabel.r - 8 - TIP_H >= 0;
+        return {
+          left: Math.max(4, Math.min(activeLabel.cx, width - TIP_W - 4)),
+          top: showAbove
+            ? activeLabel.cy - activeLabel.r - 8
+            : activeLabel.cy + activeLabel.r + 8,
+          showAbove,
+        };
+      })()
+    : null;
+
   return (
     <div ref={ref} className="relative w-full overflow-hidden">
       {width > 0 && (
@@ -119,15 +139,28 @@ export function TopicClusterMap({ data }: TopicClusterMapProps) {
                 opacity={dim ? DIM_OPACITY : active ? 1 : IDLE_OPACITY}
                 stroke="var(--background)"
                 strokeWidth={0.75}
-                className="cursor-pointer"
+                className="cursor-pointer outline-none focus-visible:[stroke:var(--ring)] focus-visible:[stroke-width:2.5]"
                 style={{
-                  transition: "r 0.15s ease, opacity 0.15s ease",
+                  transition: "r 0.15s ease, opacity 0.15s ease, stroke 0.15s ease",
                 }}
+                tabIndex={0}
+                role="button"
+                aria-label={`${p.node.title} — ${dirMeta(p.node.dir).label}`}
                 onPointerEnter={() => setHovered(p.node.id)}
                 onPointerLeave={() =>
                   setHovered((cur) => (cur === p.node.id ? null : cur))
                 }
+                onFocus={() => setHovered(p.node.id)}
+                onBlur={() =>
+                  setHovered((cur) => (cur === p.node.id ? null : cur))
+                }
                 onClick={() => router.push(`/wiki/${p.node.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/wiki/${p.node.id}`);
+                  }
+                }}
               >
                 <title>{p.node.title}</title>
               </circle>
@@ -137,16 +170,13 @@ export function TopicClusterMap({ data }: TopicClusterMapProps) {
       )}
 
       {/* Floating label near the hovered bubble, clamped inside the container. */}
-      {activeLabel && (
+      {activeLabel && labelBox && (
         <div
           className="pointer-events-none absolute z-10 max-w-[min(16rem,calc(100%-1rem))]"
           style={{
-            left: activeLabel.cx,
-            top: Math.max(4, activeLabel.cy - activeLabel.r - 8),
-            transform:
-              activeLabel.cx > width / 2
-                ? "translate(-100%, -100%)"
-                : "translate(0, -100%)",
+            left: labelBox.left,
+            top: labelBox.top,
+            transform: labelBox.showAbove ? "translateY(-100%)" : undefined,
           }}
         >
           <div className="bg-card/95 rounded-md border px-2 py-1 shadow-sm backdrop-blur">
