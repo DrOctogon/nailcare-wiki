@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { describe, it, expect } from "vitest";
-import { WIKI_DIR } from "./config";
+import { WIKI_DIR, BROWSE_DIRS } from "./config";
 import {
   getAllPageMetas,
   getStats,
@@ -9,6 +9,8 @@ import {
   getGraph,
   getSearchIndex,
   getActivityCalendar,
+  getCollectionGrowth,
+  getCollectionChords,
 } from "./vault";
 
 // Integration test against the real sibling vault. Skip cleanly when the vault
@@ -130,6 +132,88 @@ suite("vault (real content invariants)", () => {
       sum += day.count;
     }
 
+    expect(sum).toBe(expectedSum);
+  });
+
+  it("getCollectionGrowth: cumulative per-dir series over a well-formed day axis", async () => {
+    const series = await getCollectionGrowth();
+    const metas = await getAllPageMetas();
+    const browsable = new Set<string>(BROWSE_DIRS);
+
+    // dirs: non-empty, unique, and a subset of the browsable set.
+    expect(series.dirs.length).toBeGreaterThan(0);
+    expect(new Set(series.dirs).size).toBe(series.dirs.length);
+    for (const dir of series.dirs) {
+      expect(browsable.has(dir)).toBe(true);
+    }
+
+    // Recompute the expected grand total the same way the function counts:
+    // non-index pages in browsable dirs with a parseable `created ?? updated`.
+    const expectedSum = metas.filter((m) => {
+      if (m.isIndex) return false;
+      if (!browsable.has(m.dir)) return false;
+      const date = m.created ?? m.updated;
+      return date ? /^(\d{4}-\d{2}-\d{2})/.test(date) : false;
+    }).length;
+
+    let prev = "";
+    const prevByDir = new Map<string, number>(
+      series.dirs.map((d): [string, number] => [d, 0]),
+    );
+    for (const point of series.points) {
+      expect(point.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      // Strictly ascending and therefore unique.
+      expect(point.date > prev).toBe(true);
+      prev = point.date;
+      // Every dir carries a numeric, monotonic non-decreasing cumulative value.
+      for (const dir of series.dirs) {
+        const value = point.counts[dir];
+        expect(typeof value).toBe("number");
+        expect(value).toBeGreaterThanOrEqual(prevByDir.get(dir) ?? 0);
+        prevByDir.set(dir, value);
+      }
+    }
+
+    if (series.points.length > 0) {
+      const last = series.points[series.points.length - 1];
+      const total = series.dirs.reduce((acc, dir) => acc + last.counts[dir], 0);
+      expect(total).toBe(expectedSum);
+    }
+  });
+
+  it("getCollectionChords: square matrix summing to browsable-to-browsable links", async () => {
+    const chords = await getCollectionChords();
+    const graph = await getGraph();
+    const browsable = new Set<string>(BROWSE_DIRS);
+
+    // dirs are unique.
+    expect(new Set(chords.dirs).size).toBe(chords.dirs.length);
+
+    // Square: matrix.length === dirs.length and every row has the same width.
+    expect(chords.matrix.length).toBe(chords.dirs.length);
+    for (const row of chords.matrix) {
+      expect(row.length).toBe(chords.dirs.length);
+      for (const entry of row) {
+        expect(Number.isInteger(entry)).toBe(true);
+        expect(entry).toBeGreaterThanOrEqual(0);
+      }
+    }
+
+    // Total sum equals the number of links whose BOTH endpoints map to a
+    // browsable dir — recomputed the same way the function selects links.
+    const dirBySlug = new Map(graph.nodes.map((n) => [n.id, n.dir]));
+    const expectedSum = graph.links.filter((link) => {
+      const s = dirBySlug.get(link.source);
+      const t = dirBySlug.get(link.target);
+      return (
+        s !== undefined && browsable.has(s) && t !== undefined && browsable.has(t)
+      );
+    }).length;
+
+    const sum = chords.matrix.reduce(
+      (acc, row) => acc + row.reduce((a, b) => a + b, 0),
+      0,
+    );
     expect(sum).toBe(expectedSum);
   });
 });

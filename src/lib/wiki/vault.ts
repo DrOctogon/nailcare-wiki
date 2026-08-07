@@ -652,3 +652,103 @@ export const getActivityCalendar = cache(async (): Promise<ActivityDay[]> => {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, count]) => ({ date, count }));
 });
+
+export interface CollectionGrowthSeries {
+  /** Browsable collection dirs, stable order (use BROWSE_DIRS filtered to those present). */
+  dirs: string[];
+  /** One point per day that saw a page created, ascending. `counts[dir]` = CUMULATIVE
+      count of pages in that collection up to and including this day. Every point carries
+      a value for EVERY dir in `dirs` (0 until that collection's first page). */
+  points: { date: string; counts: Record<string, number> }[];
+}
+
+/**
+ * Per-collection cumulative growth over time — one point per day that saw a page
+ * created, each carrying a running cumulative count for every browsable
+ * collection. Activity date = `created ?? updated` (created-first, mirroring
+ * getGrowthSeries). Non-index pages in browsable dirs only. Powers the
+ * dashboard streamgraph.
+ */
+export const getCollectionGrowth = cache(async (): Promise<CollectionGrowthSeries> => {
+  const metas = await getAllPageMetas();
+  const browsable = new Set<string>(BROWSE_DIRS);
+  // day -> (dir -> pages added that day)
+  const perDay = new Map<string, Map<string, number>>();
+
+  for (const meta of metas) {
+    if (meta.isIndex) continue;
+    if (!browsable.has(meta.dir)) continue;
+    const date = meta.created ?? meta.updated;
+    const match = date ? /^(\d{4}-\d{2}-\d{2})/.exec(date) : null;
+    if (!match) continue;
+    const byDir = perDay.get(match[1]) ?? new Map<string, number>();
+    byDir.set(meta.dir, (byDir.get(meta.dir) ?? 0) + 1);
+    perDay.set(match[1], byDir);
+  }
+
+  // dirs = BROWSE_DIRS filtered to those with ≥1 dated page, preserving order.
+  const seen = new Set<string>();
+  for (const byDir of perDay.values()) {
+    for (const dir of byDir.keys()) seen.add(dir);
+  }
+  const dirs: string[] = BROWSE_DIRS.filter((dir) => seen.has(dir));
+
+  // Walk the sorted day axis, accumulating a running cumulative per dir.
+  const running = new Map<string, number>(dirs.map((dir): [string, number] => [dir, 0]));
+  const points = [...perDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, byDir]) => {
+      const counts: Record<string, number> = {};
+      for (const dir of dirs) {
+        const total = (running.get(dir) ?? 0) + (byDir.get(dir) ?? 0);
+        running.set(dir, total);
+        counts[dir] = total;
+      }
+      return { date, counts };
+    });
+
+  return { dirs, points };
+});
+
+export interface CollectionChords {
+  /** Matrix index order — browsable dirs present among linked nodes, stable (BROWSE_DIRS order). */
+  dirs: string[];
+  /** Square matrix. matrix[i][j] = number of links FROM a page in dirs[i] TO a page in dirs[j]
+      (diagonal = intra-collection links). */
+  matrix: number[][];
+}
+
+/**
+ * Inter-collection link matrix — how many links flow between each pair of
+ * browsable collections (diagonal = intra-collection). Built from getGraph();
+ * links touching non-browsable dirs are ignored. Powers the dashboard chord
+ * diagram.
+ */
+export const getCollectionChords = cache(async (): Promise<CollectionChords> => {
+  const graph = await getGraph();
+  const browsable = new Set<string>(BROWSE_DIRS);
+
+  // slug -> dir over all nodes, tracking which browsable dirs actually appear.
+  const dirBySlug = new Map<string, string>();
+  const present = new Set<string>();
+  for (const node of graph.nodes) {
+    dirBySlug.set(node.id, node.dir);
+    if (browsable.has(node.dir)) present.add(node.dir);
+  }
+
+  const dirs: string[] = BROWSE_DIRS.filter((dir) => present.has(dir));
+  const index = new Map<string, number>(dirs.map((dir, i): [string, number] => [dir, i]));
+
+  const matrix = dirs.map(() => dirs.map(() => 0));
+  for (const link of graph.links) {
+    const sourceDir = dirBySlug.get(link.source);
+    const targetDir = dirBySlug.get(link.target);
+    if (sourceDir === undefined || targetDir === undefined) continue;
+    const i = index.get(sourceDir);
+    const j = index.get(targetDir);
+    if (i === undefined || j === undefined) continue;
+    matrix[i][j] += 1;
+  }
+
+  return { dirs, matrix };
+});

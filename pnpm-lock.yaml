@@ -44,6 +44,9 @@ importers:
       d3-array:
         specifier: ^3.2.4
         version: 3.2.4
+      d3-chord:
+        specifier: ^3.0.1
+        version: 3.0.1
       d3-force:
         specifier: ^3.0.0
         version: 3.0.0
@@ -171,6 +174,9 @@ importers:
       '@types/d3-array':
         specifier: ^3.2.2
         version: 3.2.2
+      '@types/d3-chord':
+        specifier: ^3.0.6
+        version: 3.0.6
       '@types/d3-scale':
         specifier: ^4.0.9
         version: 4.0.9

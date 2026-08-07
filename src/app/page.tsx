@@ -18,12 +18,16 @@ import {
   getConnectivityHistogram,
   getCollectionSizes,
   getActivityCalendar,
+  getCollectionGrowth,
+  getCollectionChords,
 } from "@/lib/wiki/vault";
 import { dirMeta, DIR_ORDER } from "@/lib/wiki/labels";
 import { StatCard } from "@/components/wiki/stat-card";
 import { PageCard } from "@/components/wiki/page-card";
 import { GrowthAreaChart } from "@/components/wiki/charts/growth-area-chart";
 import { ActivityHeatmap } from "@/components/wiki/charts/activity-heatmap";
+import { CollectionStreamgraph } from "@/components/wiki/charts/collection-streamgraph";
+import { CollectionChord } from "@/components/wiki/charts/collection-chord";
 import { CollectionsBarChart } from "@/components/wiki/charts/collections-bar-chart";
 import { ConnectivityHistogram } from "@/components/wiki/charts/connectivity-histogram";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +50,8 @@ export default async function DashboardPage() {
     connectivity,
     collectionSizes,
     activity,
+    collectionGrowth,
+    collectionChords,
   ] = await Promise.all([
     getStats(),
     getMostLinked(6),
@@ -55,6 +61,8 @@ export default async function DashboardPage() {
     getConnectivityHistogram(),
     getCollectionSizes(),
     getActivityCalendar(),
+    getCollectionGrowth(),
+    getCollectionChords(),
   ]);
 
   const byDir = new Map(stats.byDir.map((d) => [d.dir, d.count]));
@@ -156,6 +164,20 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
 
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Collection growth
+              </CardTitle>
+              <CardDescription>
+                How each collection accumulated over time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CollectionStreamgraph data={collectionGrowth} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-lg">
@@ -179,6 +201,20 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ConnectivityHistogram data={connectivity} />
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Links between collections
+              </CardTitle>
+              <CardDescription>
+                How often notes in each collection reference the others.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CollectionChord data={collectionChords} />
             </CardContent>
           </Card>
         </div>
