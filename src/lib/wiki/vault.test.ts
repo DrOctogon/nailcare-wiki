@@ -11,6 +11,9 @@ import {
   getActivityCalendar,
   getCollectionGrowth,
   getCollectionChords,
+  getMaturityDistribution,
+  getTopicClusters,
+  getTopNotes,
 } from "./vault";
 
 // Integration test against the real sibling vault. Skip cleanly when the vault
@@ -215,5 +218,77 @@ suite("vault (real content invariants)", () => {
       0,
     );
     expect(sum).toBe(expectedSum);
+  });
+
+  it("getMaturityDistribution: ladder-ordered funnel with an optional trailing Other", async () => {
+    const stages = await getMaturityDistribution();
+    const metas = await getAllPageMetas();
+
+    // First five entries are the canonical ladder, in order.
+    const ladder = ["seed", "developing", "stable", "evergreen", "mature"];
+    expect(stages.length).toBeGreaterThanOrEqual(5);
+    for (let i = 0; i < ladder.length; i++) {
+      expect(stages[i].status).toBe(ladder[i]);
+    }
+
+    // Every stage count is non-negative.
+    for (const stage of stages) {
+      expect(stage.count).toBeGreaterThanOrEqual(0);
+    }
+
+    // A sixth entry, if present, is the non-empty "other" bucket.
+    if (stages.length > 5) {
+      expect(stages.length).toBe(6);
+      expect(stages[5].status).toBe("other");
+      expect(stages[5].count).toBeGreaterThan(0);
+    }
+
+    // Null-status pages are excluded, so the counts can't exceed non-index pages.
+    const nonIndexCount = metas.filter((m) => !m.isIndex).length;
+    const sum = stages.reduce((acc, s) => acc + s.count, 0);
+    expect(sum).toBeLessThanOrEqual(nonIndexCount);
+  });
+
+  it("getTopicClusters: finite-coordinate nodes with a bounded community count", async () => {
+    const clusters = await getTopicClusters();
+    expect(clusters.nodes.length).toBeGreaterThan(0);
+
+    for (const node of clusters.nodes) {
+      expect(Number.isFinite(node.x)).toBe(true);
+      expect(Number.isFinite(node.y)).toBe(true);
+      expect(typeof node.pagerank).toBe("number");
+      expect(node.pagerank).toBeGreaterThanOrEqual(0);
+    }
+
+    // Node ids are unique.
+    const ids = clusters.nodes.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // At least one community, at most one per node.
+    expect(clusters.communities).toBeGreaterThanOrEqual(1);
+    expect(clusters.communities).toBeLessThanOrEqual(clusters.nodes.length);
+  });
+
+  it("getTopNotes: pagerank-descending, unique slugs, respecting the limit", async () => {
+    const notes = await getTopNotes();
+
+    // Default limit caps the list at 15.
+    expect(notes.length).toBeLessThanOrEqual(15);
+
+    // PageRank is monotonic non-increasing; backlink counts are non-negative.
+    let prev = Infinity;
+    for (const note of notes) {
+      expect(note.pagerank).toBeLessThanOrEqual(prev);
+      expect(note.backlinkCount).toBeGreaterThanOrEqual(0);
+      prev = note.pagerank;
+    }
+
+    // Slugs are unique.
+    const slugs = notes.map((n) => n.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+
+    // An explicit smaller limit is honored.
+    const limited = await getTopNotes(5);
+    expect(limited.length).toBeLessThanOrEqual(5);
   });
 });

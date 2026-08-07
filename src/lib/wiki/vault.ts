@@ -752,3 +752,111 @@ export const getCollectionChords = cache(async (): Promise<CollectionChords> => 
 
   return { dirs, matrix };
 });
+
+export interface MaturityStage {
+  status: string;
+  label: string;
+  count: number;
+}
+
+/** Canonical knowledge-maturity ladder, in pipeline order. */
+const MATURITY_LADDER = ["seed", "developing", "stable", "evergreen", "mature"];
+
+/**
+ * Knowledge-maturity funnel — non-index pages bucketed along the canonical
+ * maturity ladder (seed → developing → stable → evergreen → mature), with any
+ * off-ladder status collected into a trailing "Other" stage. Pages with a null
+ * status are ignored. The five ladder stages are always returned in order (even
+ * at count 0, so the funnel keeps its shape); "Other" trails only when non-empty.
+ */
+export const getMaturityDistribution = cache(async (): Promise<MaturityStage[]> => {
+  const counts = new Map<string, number>(
+    MATURITY_LADDER.map((status): [string, number] => [status, 0]),
+  );
+  let other = 0;
+
+  for (const meta of await getAllPageMetas()) {
+    if (meta.isIndex) continue;
+    if (meta.status == null) continue;
+    const status = meta.status.toLowerCase();
+    if (counts.has(status)) counts.set(status, (counts.get(status) ?? 0) + 1);
+    else other += 1;
+  }
+
+  const stages: MaturityStage[] = MATURITY_LADDER.map((status) => ({
+    status,
+    label: status.charAt(0).toUpperCase() + status.slice(1),
+    count: counts.get(status) ?? 0,
+  }));
+  if (other > 0) stages.push({ status: "other", label: "Other", count: other });
+  return stages;
+});
+
+export interface ClusterNode {
+  id: string;
+  title: string;
+  dir: string;
+  community: number;
+  pagerank: number;
+  x: number;
+  y: number;
+}
+
+export interface TopicClusters {
+  nodes: ClusterNode[];
+  communities: number;
+}
+
+/**
+ * Topic clusters for the community scatter map — every graph node projected to
+ * its layout coordinates, Louvain community, and PageRank. `communities` is the
+ * count of distinct community values across the nodes.
+ */
+export const getTopicClusters = cache(async (): Promise<TopicClusters> => {
+  const { nodes } = await getGraph();
+  const clusterNodes: ClusterNode[] = nodes.map((n) => ({
+    id: n.id,
+    title: n.title,
+    dir: n.dir,
+    community: n.community,
+    pagerank: n.pagerank,
+    x: n.x,
+    y: n.y,
+  }));
+  const communities = new Set(clusterNodes.map((n) => n.community)).size;
+  return { nodes: clusterNodes, communities };
+});
+
+export interface RankedNote {
+  slug: string;
+  title: string;
+  dir: string;
+  pagerank: number;
+  backlinkCount: number;
+}
+
+/**
+ * Most structurally-important notes — graph nodes ranked by PageRank descending,
+ * joined to their backlink count from the page metas. Nodes whose slug resolves
+ * to an index page are skipped. Returns up to `limit` rows.
+ */
+export const getTopNotes = cache(async (limit = 15): Promise<RankedNote[]> => {
+  const [{ nodes }, metas] = await Promise.all([getGraph(), getAllPageMetas()]);
+  const metaBySlug = new Map(metas.map((m) => [m.slug, m]));
+
+  const ranked = [...nodes].sort((a, b) => b.pagerank - a.pagerank);
+  const out: RankedNote[] = [];
+  for (const node of ranked) {
+    const meta = metaBySlug.get(node.id);
+    if (meta?.isIndex) continue;
+    out.push({
+      slug: node.id,
+      title: node.title,
+      dir: node.dir,
+      pagerank: node.pagerank,
+      backlinkCount: meta?.backlinkCount ?? 0,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+});

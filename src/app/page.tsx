@@ -20,6 +20,9 @@ import {
   getActivityCalendar,
   getCollectionGrowth,
   getCollectionChords,
+  getMaturityDistribution,
+  getTopicClusters,
+  getTopNotes,
 } from "@/lib/wiki/vault";
 import { dirMeta, DIR_ORDER } from "@/lib/wiki/labels";
 import { StatCard } from "@/components/wiki/stat-card";
@@ -28,6 +31,9 @@ import { GrowthAreaChart } from "@/components/wiki/charts/growth-area-chart";
 import { ActivityHeatmap } from "@/components/wiki/charts/activity-heatmap";
 import { CollectionStreamgraph } from "@/components/wiki/charts/collection-streamgraph";
 import { CollectionChord } from "@/components/wiki/charts/collection-chord";
+import { MaturityFunnel } from "@/components/wiki/charts/maturity-funnel";
+import { TopicClusterMap } from "@/components/wiki/charts/topic-cluster-map";
+import { TopNotesRanking } from "@/components/wiki/charts/top-notes-ranking";
 import { CollectionsBarChart } from "@/components/wiki/charts/collections-bar-chart";
 import { ConnectivityHistogram } from "@/components/wiki/charts/connectivity-histogram";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +58,9 @@ export default async function DashboardPage() {
     activity,
     collectionGrowth,
     collectionChords,
+    maturity,
+    clusters,
+    topNotes,
   ] = await Promise.all([
     getStats(),
     getMostLinked(6),
@@ -63,6 +72,9 @@ export default async function DashboardPage() {
     getActivityCalendar(),
     getCollectionGrowth(),
     getCollectionChords(),
+    getMaturityDistribution(),
+    getTopicClusters(),
+    getTopNotes(15),
   ]);
 
   const byDir = new Map(stats.byDir.map((d) => [d.dir, d.count]));
@@ -215,6 +227,49 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <CollectionChord data={collectionChords} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Knowledge maturity
+              </CardTitle>
+              <CardDescription>
+                Notes maturing from seed to evergreen — the compounding pipeline.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MaturityFunnel data={maturity} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Most important notes
+              </CardTitle>
+              <CardDescription>
+                Ranked by PageRank — the vault&apos;s structural anchors.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TopNotesRanking data={topNotes} />
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                Topic clusters
+              </CardTitle>
+              <CardDescription>
+                Notes grouped by link community, placed by graph layout and sized
+                by PageRank.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TopicClusterMap data={clusters} />
             </CardContent>
           </Card>
         </div>
